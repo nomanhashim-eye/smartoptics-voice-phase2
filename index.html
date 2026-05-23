@@ -1,4 +1,3 @@
-<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -373,6 +372,7 @@
   let workletNode   = null;
   let sourceNode    = null;
   let recording     = false;
+  let azureReady    = false;   // becomes true on server "ready" message
   let bytesSent     = 0;
   let finalText     = '';
   let interimText   = '';
@@ -477,9 +477,12 @@
     finalText = '';
     interimText = '';
     bytesSent = 0;
+    azureReady = false;
     updateResult();
     metaBytes.textContent = '0 KB';
     metaStatus.textContent = 'connecting';
+    micLabel.textContent = 'Connecting to Azure…';
+    micBtn.disabled = true;
 
     // 1. Open WebSocket
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -490,6 +493,8 @@
     } catch (e) {
       showBanner('Could not open WebSocket: ' + e.message);
       metaStatus.textContent = 'error';
+      micBtn.disabled = false;
+      micLabel.textContent = 'Tap to start recording';
       return;
     }
 
@@ -500,6 +505,8 @@
     }).catch(err => {
       showBanner('WebSocket failed: ' + err.message);
       metaStatus.textContent = 'error';
+      micBtn.disabled = false;
+      micLabel.textContent = 'Tap to start recording';
       ws = null;
     });
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -517,16 +524,20 @@
         metaStatus.textContent = 'closed';
         cleanupAudio();
         recording = false;
+        azureReady = false;
         micBtn.classList.remove('recording');
         micBtn.textContent = '🎙';
         micLabel.textContent = 'Tap to start recording';
+        micBtn.disabled = false;
       }
     };
 
     // 2. Send start frame
     ws.send(JSON.stringify({ type: 'start', use_phrases: usePhrases.checked }));
 
-    // 3. Get microphone
+    // 3. Get microphone permission and set up the audio pipeline now —
+    //    but the worklet handler below WON'T send any bytes until
+    //    azureReady becomes true (set in handleServerMessage on 'ready').
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
@@ -535,6 +546,8 @@
       showBanner('Microphone permission denied.');
       metaStatus.textContent = 'error';
       ws.close();
+      micBtn.disabled = false;
+      micLabel.textContent = 'Tap to start recording';
       return;
     }
 
@@ -548,6 +561,8 @@
       showBanner('AudioWorklet failed to load: ' + e.message);
       metaStatus.textContent = 'error';
       ws.close();
+      micBtn.disabled = false;
+      micLabel.textContent = 'Tap to start recording';
       return;
     }
 
@@ -558,6 +573,11 @@
 
     const inputRate = audioCtx.sampleRate;
     workletNode.port.onmessage = (e) => {
+      // *** KEY FIX ***
+      // Only send audio bytes once Azure has confirmed it's listening.
+      // Prior to azureReady, we silently drop incoming worklet frames.
+      // The audio context is running but nothing reaches the server.
+      if (!azureReady) return;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       const floats = e.data;
       const downsampled = downsampleBuffer(floats, inputRate, 16000);
@@ -567,16 +587,18 @@
       metaBytes.textContent = `${(bytesSent / 1024).toFixed(1)} KB`;
     };
 
+    // 5. We are pre-recording. Mic is set up but audio is gated.
+    //    Show a "waiting" state — the button will become active
+    //    when the server sends 'ready' (handled in handleServerMessage).
     recording = true;
-    micBtn.classList.add('recording');
-    micBtn.textContent = '■';
-    micLabel.textContent = 'Recording… tap to stop';
-    metaStatus.textContent = 'recording';
+    metaStatus.textContent = 'waiting for Azure';
+    micLabel.textContent = 'Almost ready…';
   }
 
   async function stopRecording() {
     if (!recording) return;
     recording = false;
+    azureReady = false;
     micLabel.textContent = 'Finishing transcription…';
     micBtn.disabled = true;
     metaStatus.textContent = 'finalizing';
@@ -626,7 +648,14 @@
 
   function handleServerMessage(msg) {
     if (msg.type === 'ready') {
-      metaStatus.textContent = 'streaming';
+      // Azure session is live. Open the audio gate, transition the
+      // button to "recording", and tell the user it's now listening.
+      azureReady = true;
+      metaStatus.textContent = 'listening';
+      micBtn.classList.add('recording');
+      micBtn.textContent = '■';
+      micLabel.textContent = 'Listening… tap to stop';
+      micBtn.disabled = false;
     } else if (msg.type === 'interim') {
       interimText = msg.text || '';
       updateResult();
@@ -637,9 +666,11 @@
       addLog(msg.text);
     } else if (msg.type === 'session_stopped') {
       metaStatus.textContent = 'idle';
+      azureReady = false;
     } else if (msg.type === 'error') {
       showBanner('Server: ' + msg.message);
       metaStatus.textContent = 'error';
+      azureReady = false;
     }
   }
 
