@@ -212,17 +212,32 @@ async def websocket_transcribe(ws: WebSocket):
         log.info("Azure session stopped")
         send_safely({"type": "session_stopped"})
 
+    # session_started fires when Azure is actually listening. Until this
+    # event arrives, any audio bytes we push are dropped. We use a
+    # threading.Event to signal back to the main coroutine.
+    session_started_evt = threading.Event()
+    def on_session_started(evt):
+        log.info("Azure session started — recognizer is now listening")
+        session_started_evt.set()
+
+    recognizer.session_started.connect(on_session_started)
     recognizer.recognizing.connect(on_recognizing)
     recognizer.recognized.connect(on_recognized)
     recognizer.canceled.connect(on_canceled)
     recognizer.session_stopped.connect(on_session_stopped)
 
     # ------------------------------------------------------------------
-    # Begin continuous recognition. This call is non-blocking.
+    # Begin continuous recognition. Wait for Azure to confirm it has
+    # actually started listening before we signal "ready" to the client.
+    # This eliminates the dropped-first-words bug.
     # ------------------------------------------------------------------
     recognizer.start_continuous_recognition_async().get()
+    # Wait up to 5s for the session_started event from Azure.
+    session_ready = await loop.run_in_executor(None, session_started_evt.wait, 5.0)
+    if not session_ready:
+        log.warning("Azure session_started not received within 5s; proceeding anyway")
     await ws.send_json({"type": "ready"})
-    log.info("Azure recognizer running")
+    log.info("Azure recognizer ready, client notified")
 
     # ------------------------------------------------------------------
     # Pump audio from the WebSocket into the push stream until the
