@@ -882,9 +882,20 @@
       interimText = '';
       updateResult();
       addLog(msg.text);
+      // If the user has already tapped stop, this final segment is the
+      // tail-end of the session. Show the feedback panel now — don't
+      // rely on the post-stop timeout, which may fire before Azure's
+      // final transcript arrives.
+      if (!recording && finalText) {
+        showFeedback();
+      }
     } else if (msg.type === 'session_stopped') {
       metaStatus.textContent = 'idle';
       azureReady = false;
+      // Belt-and-braces: also show feedback when Azure signals session end
+      if (!recording && finalText) {
+        showFeedback();
+      }
     } else if (msg.type === 'error') {
       showBanner('Server: ' + msg.message);
       metaStatus.textContent = 'error';
@@ -929,6 +940,10 @@
   // ====================================================================
 
   function showFeedback() {
+    // Idempotent: if the panel is already visible (e.g. this is the
+    // second call within the same session), do nothing. Avoids wiping
+    // user-entered notes or the 'Logged ✓' confirmation if called again.
+    if (feedback.classList.contains('visible')) return;
     feedback.classList.add('visible');
     // Reset all verdict buttons to enabled
     verdictBtns.forEach(b => b.classList.remove('logged'));
