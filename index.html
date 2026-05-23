@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -250,6 +251,123 @@
     font-size: 13px;
   }
   .conn-banner.hidden { display: none; }
+
+  .info-notice {
+    background: var(--blue-soft);
+    border: 1px solid var(--blue);
+    border-left-width: 4px;
+    color: var(--navy);
+    padding: 10px 14px;
+    margin: 14px auto 0 auto;
+    max-width: 1044px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .info-notice strong { color: var(--navy); }
+
+  /* Tester name row */
+  .tester-row {
+    max-width: 1044px;
+    margin: 14px auto 0 auto;
+    padding: 10px 14px;
+    background: white;
+    border: 1px solid var(--grey-line);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+  }
+  .tester-row label {
+    font-weight: 600;
+    color: var(--navy);
+    white-space: nowrap;
+  }
+  .tester-row input {
+    padding: 6px 10px;
+    border: 1px solid var(--grey-line);
+    font-family: inherit;
+    font-size: 13px;
+    min-width: 200px;
+  }
+  .tester-row input:focus {
+    outline: none;
+    border-color: var(--blue);
+  }
+  .tester-status {
+    color: var(--amber);
+    font-size: 12px;
+  }
+  .tester-status.ok {
+    color: var(--green);
+  }
+
+  /* Verdict / feedback section, appears below the transcript */
+  .feedback {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--grey-soft);
+    border: 1px solid var(--grey-line);
+    display: none;
+  }
+  .feedback.visible { display: block; }
+  .feedback .prompt {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .verdict-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .verdict-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--grey-line);
+    background: white;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .verdict-btn:hover { background: var(--blue-soft); }
+  .verdict-btn.correct {
+    border-left: 3px solid var(--green);
+  }
+  .verdict-btn.correct:hover { background: #eaf5ec; }
+  .verdict-btn.partial {
+    border-left: 3px solid var(--amber);
+  }
+  .verdict-btn.partial:hover { background: #fff4d6; }
+  .verdict-btn.wrong {
+    border-left: 3px solid var(--red);
+  }
+  .verdict-btn.wrong:hover { background: #f9e2e0; }
+  .verdict-btn.logged {
+    background: #eaf5ec;
+    border-color: var(--green);
+    cursor: default;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+  .feedback .notes-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--grey-line);
+    font-family: inherit;
+    font-size: 13px;
+    margin-bottom: 6px;
+    box-sizing: border-box;
+  }
+  .feedback .log-state {
+    font-size: 12px;
+    color: var(--muted);
+    min-height: 16px;
+  }
+  .feedback .log-state.ok { color: var(--green); }
+  .feedback .log-state.err { color: var(--red); }
 </style>
 </head>
 <body>
@@ -258,6 +376,18 @@
   <h1>SmartOptics — Voice Input Test (Phase 2)</h1>
   <div class="sub">Cloud · Azure Speech (streaming) · UK South</div>
 </header>
+
+<div class="info-notice">
+  <strong>Best on desktop Chrome.</strong>
+  Mobile browsers may not work in this test harness.
+  If the page seems frozen on first load, the server is waking from sleep — please wait ~60 seconds.
+</div>
+
+<div class="tester-row">
+  <label for="testerName">Your name:</label>
+  <input id="testerName" type="text" placeholder="e.g. Romana" autocomplete="off" />
+  <span id="testerStatus" class="tester-status">Not set — please enter your name before testing</span>
+</div>
 
 <div id="connBanner" class="conn-banner hidden"></div>
 
@@ -279,6 +409,17 @@
 
     <h2 style="margin-top: 22px;">Transcription</h2>
     <div id="result" class="result empty">Result will appear here as you speak.</div>
+
+    <div id="feedback" class="feedback">
+      <div class="prompt">Was the transcription accurate? Click one and your result will be logged.</div>
+      <div class="verdict-buttons">
+        <button class="verdict-btn correct" data-verdict="correct">✓ Correct</button>
+        <button class="verdict-btn partial" data-verdict="partial">≈ Partial</button>
+        <button class="verdict-btn wrong" data-verdict="wrong">✗ Wrong</button>
+      </div>
+      <input id="notesInput" class="notes-input" type="text" placeholder="Optional notes — what was wrong, what you actually said, etc." />
+      <div id="logState" class="log-state"></div>
+    </div>
 
     <div class="status-pills">
       <div class="pill"><span class="k">Status</span><span class="v" id="metaStatus">idle</span></div>
@@ -353,19 +494,37 @@
 <script>
 /* ====================================================================
    Phase 2 client — Web Audio API capture, WebSocket to backend, Azure
+   Logs verdicts to a Google Apps Script endpoint.
    ==================================================================== */
 
 (() => {
-  const micBtn     = document.getElementById('micBtn');
-  const micLabel   = document.getElementById('micLabel');
-  const result     = document.getElementById('result');
-  const metaStatus = document.getElementById('metaStatus');
-  const metaBytes  = document.getElementById('metaBytes');
-  const metaRegion = document.getElementById('metaRegion');
-  const usePhrases = document.getElementById('usePhrases');
-  const logEl      = document.getElementById('log');
-  const connBanner = document.getElementById('connBanner');
+  // ------------------------------------------------------------------
+  // Configuration
+  // ------------------------------------------------------------------
+  const LOGGER_URL = "https://script.google.com/macros/s/AKfycbzI0Og5j4vDji-zNIghtSqGhPzSajfeQhkpyJ-CjqYBqutas8C6kIAqFVb5qcvmmNn9jg/exec";
 
+  // ------------------------------------------------------------------
+  // DOM refs
+  // ------------------------------------------------------------------
+  const micBtn       = document.getElementById('micBtn');
+  const micLabel     = document.getElementById('micLabel');
+  const result       = document.getElementById('result');
+  const metaStatus   = document.getElementById('metaStatus');
+  const metaBytes    = document.getElementById('metaBytes');
+  const metaRegion   = document.getElementById('metaRegion');
+  const usePhrases   = document.getElementById('usePhrases');
+  const logEl        = document.getElementById('log');
+  const connBanner   = document.getElementById('connBanner');
+  const testerName   = document.getElementById('testerName');
+  const testerStatus = document.getElementById('testerStatus');
+  const feedback     = document.getElementById('feedback');
+  const notesInput   = document.getElementById('notesInput');
+  const logState     = document.getElementById('logState');
+  const verdictBtns  = document.querySelectorAll('.verdict-btn');
+
+  // ------------------------------------------------------------------
+  // State
+  // ------------------------------------------------------------------
   let ws            = null;
   let audioCtx      = null;
   let mediaStream   = null;
@@ -377,6 +536,41 @@
   let finalText     = '';
   let interimText   = '';
   let activePhrase  = null;
+
+  // Per-session metadata for logging
+  let sessionId         = '';
+  let sessionStart      = 0;        // performance.now()
+  let sessionPhraseText = '';       // text of the clicked test phrase, if any
+  let sessionCategory   = 'freeform';
+  let sessionPhraseBias = 'on';
+
+  // ------------------------------------------------------------------
+  // Tester name — persisted in localStorage so each person types once
+  // ------------------------------------------------------------------
+  function loadTesterName() {
+    try {
+      const saved = localStorage.getItem('smartoptics_tester_name') || '';
+      testerName.value = saved;
+      updateTesterStatus();
+    } catch (e) { /* private browsing etc */ }
+  }
+  function saveTesterName() {
+    try { localStorage.setItem('smartoptics_tester_name', testerName.value.trim()); } catch (e) {}
+    updateTesterStatus();
+  }
+  function updateTesterStatus() {
+    const v = (testerName.value || '').trim();
+    if (v) {
+      testerStatus.textContent = `Logging as: ${v}`;
+      testerStatus.classList.add('ok');
+    } else {
+      testerStatus.textContent = 'Not set — please enter your name before testing';
+      testerStatus.classList.remove('ok');
+    }
+  }
+  testerName.addEventListener('input', saveTesterName);
+  testerName.addEventListener('blur', saveTesterName);
+  loadTesterName();
 
   // Show server region on load
   fetch('/health').then(r => r.json()).then(d => {
@@ -473,6 +667,22 @@
   }
 
   async function startRecording() {
+    // Capture per-session metadata at the moment recording starts
+    sessionId = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    sessionStart = performance.now();
+    sessionPhraseBias = usePhrases.checked ? 'on' : 'off';
+    if (activePhrase) {
+      sessionPhraseText = activePhrase.textContent.trim();
+      const ul = activePhrase.closest('.phrases');
+      sessionCategory = (ul && ul.dataset.cat) ? ul.dataset.cat : 'freeform';
+    } else {
+      sessionPhraseText = '';
+      sessionCategory = 'freeform';
+    }
+
+    // Hide the feedback panel from any previous session
+    hideFeedback();
+
     hideBanner();
     finalText = '';
     interimText = '';
@@ -628,7 +838,15 @@
       if (activePhrase && finalText) {
         activePhrase.classList.add('spoken');
         activePhrase.style.outline = 'none';
+        // Keep a reference for logging (sessionPhraseText/Category were
+        // already captured at session start; don't clear activePhrase
+        // here so user can still see what they targeted).
         activePhrase = null;
+      }
+
+      // Show the feedback panel if we got any transcript
+      if (finalText) {
+        showFeedback();
       }
     }, 2300);
   }
@@ -705,6 +923,83 @@
     entry.innerHTML = `<div class="t">${now}</div><div class="text">${safe}</div>`;
     logEl.insertBefore(entry, logEl.firstChild);
   }
+
+  // ====================================================================
+  // Feedback panel + logging to Google Sheet
+  // ====================================================================
+
+  function showFeedback() {
+    feedback.classList.add('visible');
+    // Reset all verdict buttons to enabled
+    verdictBtns.forEach(b => b.classList.remove('logged'));
+    notesInput.value = '';
+    logState.textContent = '';
+    logState.classList.remove('ok', 'err');
+  }
+
+  function hideFeedback() {
+    feedback.classList.remove('visible');
+    verdictBtns.forEach(b => b.classList.remove('logged'));
+    notesInput.value = '';
+    logState.textContent = '';
+    logState.classList.remove('ok', 'err');
+  }
+
+  verdictBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const verdict = btn.dataset.verdict;
+      const name = (testerName.value || '').trim();
+
+      if (!name) {
+        logState.textContent = 'Please enter your name at the top of the page first.';
+        logState.classList.add('err');
+        testerName.focus();
+        return;
+      }
+
+      // Visually lock all buttons while we POST
+      verdictBtns.forEach(b => b.classList.add('logged'));
+      logState.textContent = 'Logging…';
+      logState.classList.remove('ok', 'err');
+
+      const audioSeconds = sessionStart ? ((performance.now() - sessionStart) / 1000).toFixed(2) : '';
+
+      const payload = {
+        tester: name,
+        expected: sessionPhraseText,
+        heard: finalText,
+        verdict: verdict,
+        category: sessionCategory,
+        notes: notesInput.value.trim(),
+        phrase_bias: sessionPhraseBias,
+        browser: navigator.userAgent,
+        session_id: sessionId,
+        audio_seconds: audioSeconds,
+      };
+
+      try {
+        // Apps Script web apps require 'no-cors' style request when posted
+        // from a different origin. We use text/plain content-type to avoid
+        // a CORS preflight that Apps Script doesn't handle.
+        const resp = await fetch(LOGGER_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+        });
+        // In no-cors mode the response is opaque — we can't read status.
+        // Treat reaching this point without throwing as success.
+        logState.textContent = 'Logged ✓ (check the Google Sheet)';
+        logState.classList.add('ok');
+      } catch (err) {
+        console.error('Logger POST failed:', err);
+        logState.textContent = 'Failed to log: ' + err.message + ' (your result was NOT saved)';
+        logState.classList.add('err');
+        // Re-enable buttons so user can retry
+        verdictBtns.forEach(b => b.classList.remove('logged'));
+      }
+    });
+  });
 })();
 </script>
 </body>
