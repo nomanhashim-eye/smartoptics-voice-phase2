@@ -1,0 +1,19 @@
+# Render deployment descriptor.
+# When pushed to a Git repo connected to Render, this auto-provisions the
+# service. You can also configure these settings manually in the Render UI.
+
+services:
+  - type: web
+    name: smartoptics-voice-phase2
+    runtime: python
+    plan: free
+    region: frankfurt          # Frankfurt is the closest free Render region to UK South Azure
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: AZURE_SPEECH_REGION
+        value: uksouth
+      - key: AZURE_SPEECH_KEY
+        sync: false              # MUST be set manually in Render dashboard — never commit it
+      - key: PYTHON_VERSION
+        value: "3.11.9"

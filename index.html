@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SmartOptics Voice Test — Phase 2 (Azure Streaming)</title>
+<style>
+  :root {
+    --navy: #1a2b50;
+    --blue: #2563a3;
+    --blue-soft: #e8f0f9;
+    --grey-line: #cccccc;
+    --grey-soft: #f4f4f4;
+    --green: #2d8a4f;
+    --red: #c4322a;
+    --amber: #b67d10;
+    --text: #2a2a2a;
+    --muted: #6a6a6a;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 0;
+    background: #fafafa;
+    color: var(--text);
+    line-height: 1.45;
+  }
+
+  header {
+    background: var(--navy);
+    color: white;
+    padding: 18px 28px;
+    border-bottom: 4px solid var(--blue);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  header .sub {
+    font-size: 12px;
+    opacity: 0.75;
+    margin-top: 4px;
+  }
+
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: white;
+    border: 1px solid var(--grey-line);
+    padding: 22px;
+  }
+
+  .card h2 {
+    margin: 0 0 14px 0;
+    color: var(--navy);
+    font-size: 15px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    border-bottom: 1px solid var(--grey-line);
+    padding-bottom: 8px;
+  }
+
+  .mic-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+  }
+  .mic-btn {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: var(--blue);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.05s;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+  }
+  .mic-btn:hover { background: var(--navy); }
+  .mic-btn:active { transform: scale(0.97); }
+  .mic-btn.recording {
+    background: var(--red);
+    animation: pulse 1.2s infinite;
+  }
+  .mic-btn:disabled {
+    background: #999;
+    cursor: not-allowed;
+    animation: none;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(196, 50, 42, 0.5); }
+    50%      { box-shadow: 0 0 0 14px rgba(196, 50, 42, 0); }
+  }
+
+  .mic-label {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+    min-height: 18px;
+  }
+
+  .opts {
+    margin-top: 18px;
+    padding: 12px;
+    background: var(--grey-soft);
+    border: 1px solid var(--grey-line);
+    font-size: 13px;
+  }
+  .opts label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .opts input { margin: 0; }
+
+  /* Provisional-text rendering, per §22.3 of the spec */
+  .result {
+    min-height: 80px;
+    padding: 14px;
+    background: var(--blue-soft);
+    border: 1px solid var(--blue);
+    font-size: 15px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin-bottom: 12px;
+    min-height: 120px;
+  }
+  .result.empty {
+    color: var(--muted);
+    font-style: italic;
+    background: var(--grey-soft);
+    border-color: var(--grey-line);
+  }
+  .result .interim {
+    color: var(--muted);
+    font-style: italic;
+  }
+  .result .final {
+    color: var(--text);
+  }
+
+  .status-pills {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    font-size: 12px;
+  }
+  .status-pills .pill {
+    background: var(--grey-soft);
+    border: 1px solid var(--grey-line);
+    padding: 6px 10px;
+  }
+  .status-pills .pill .k {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .status-pills .pill .v {
+    color: var(--navy);
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+  }
+
+  .phrase-group { margin-bottom: 18px; }
+  .phrase-group h3 {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .phrases { list-style: none; padding: 0; margin: 0; }
+  .phrases li {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background: var(--grey-soft);
+    border-left: 3px solid var(--blue);
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.1s;
+  }
+  .phrases li:hover { background: var(--blue-soft); }
+  .phrases li.spoken {
+    background: #eaf5ec;
+    border-left-color: var(--green);
+    color: var(--muted);
+  }
+
+  .log {
+    margin-top: 14px;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--grey-line);
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+  }
+  .log-entry {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--grey-line);
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 10px;
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry:nth-child(even) { background: var(--grey-soft); }
+  .log-entry .t { color: var(--muted); }
+  .log-entry .text { color: var(--text); word-break: break-word; }
+
+  .footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .conn-banner {
+    background: #fff4d6;
+    border: 1px solid var(--amber);
+    color: #5a4108;
+    padding: 8px 14px;
+    margin: 14px 28px 0 28px;
+    max-width: 1044px;
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 13px;
+  }
+  .conn-banner.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SmartOptics — Voice Input Test (Phase 2)</h1>
+  <div class="sub">Cloud · Azure Speech (streaming) · UK South</div>
+</header>
+
+<div id="connBanner" class="conn-banner hidden"></div>
+
+<main>
+  <section class="card">
+    <h2>Microphone</h2>
+
+    <div class="mic-area">
+      <button id="micBtn" class="mic-btn" aria-label="Record">🎙</button>
+      <div id="micLabel" class="mic-label">Tap to start recording</div>
+    </div>
+
+    <div class="opts">
+      <label>
+        <input type="checkbox" id="usePhrases" checked />
+        Use optical phrase-list bias (Azure equivalent of vocabulary hint)
+      </label>
+    </div>
+
+    <h2 style="margin-top: 22px;">Transcription</h2>
+    <div id="result" class="result empty">Result will appear here as you speak.</div>
+
+    <div class="status-pills">
+      <div class="pill"><span class="k">Status</span><span class="v" id="metaStatus">idle</span></div>
+      <div class="pill"><span class="k">Audio sent</span><span class="v" id="metaBytes">0 KB</span></div>
+      <div class="pill"><span class="k">Region</span><span class="v" id="metaRegion">—</span></div>
+    </div>
+
+    <h2 style="margin-top: 22px;">Session log</h2>
+    <div id="log" class="log"></div>
+  </section>
+
+  <section class="card">
+    <h2>Test phrases — click one then read it aloud</h2>
+
+    <div class="phrase-group">
+      <h3>Prescriptions (the hard cases)</h3>
+      <ul class="phrases" data-cat="rx">
+        <li>Sphere minus two fifty, cylinder minus zero seventy five, axis one eighty</li>
+        <li>Right eye plus three twenty five, left eye plus two seventy five, add plus two fifty</li>
+        <li>Sphere plus zero five, cylinder minus one twenty five, axis ninety degrees</li>
+        <li>Prism two base out, near add plus one seventy five</li>
+        <li>Visual acuity six over six right, six over nine left</li>
+      </ul>
+    </div>
+
+    <div class="phrase-group">
+      <h3>Pathology and clinical terms</h3>
+      <ul class="phrases" data-cat="path">
+        <li>Patient presents with blepharitis and mild dry eye syndrome</li>
+        <li>Early signs of diabetic retinopathy noted in the right fundus</li>
+        <li>Mild posterior subcapsular cataract, both eyes</li>
+        <li>Intraocular pressure twenty two right, twenty one left</li>
+        <li>Suspected primary open angle glaucoma, refer to ophthalmology</li>
+      </ul>
+    </div>
+
+    <div class="phrase-group">
+      <h3>Brand and product names</h3>
+      <ul class="phrases" data-cat="brand">
+        <li>Acuvue Oasys with hydraluxe, two week disposable</li>
+        <li>Varilux X series varifocal with Crizal Sapphire coating</li>
+        <li>Hoya Hilux one point six seven, single vision</li>
+        <li>Essilor Eyezen with anti fatigue, blue light filter</li>
+        <li>Zeiss Drivesafe lenses with DuraVision Platinum</li>
+      </ul>
+    </div>
+
+    <div class="phrase-group">
+      <h3>GOS / NHS terminology</h3>
+      <ul class="phrases" data-cat="gos">
+        <li>Patient entitled under HC2 certificate, claim under GOS one</li>
+        <li>GOS three voucher issued, complex prescription</li>
+        <li>Domiciliary visit, GOS six form completed</li>
+      </ul>
+    </div>
+
+    <div class="phrase-group">
+      <h3>UK names and addresses</h3>
+      <ul class="phrases" data-cat="names">
+        <li>Patient name Siobhan Featherstonehaugh</li>
+        <li>Address forty two Kingsway, Crouch End, London N eight</li>
+        <li>Mr Aravind Krishnamurthy, date of birth twelfth of March nineteen seventy two</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<div class="footer">
+  SmartOptics PMS · Phase 2 prototype · Audio streamed to Azure Speech (UK South), transcript only retained.
+</div>
+
+<script>
+/* ====================================================================
+   Phase 2 client — Web Audio API capture, WebSocket to backend, Azure
+   ==================================================================== */
+
+(() => {
+  const micBtn     = document.getElementById('micBtn');
+  const micLabel   = document.getElementById('micLabel');
+  const result     = document.getElementById('result');
+  const metaStatus = document.getElementById('metaStatus');
+  const metaBytes  = document.getElementById('metaBytes');
+  const metaRegion = document.getElementById('metaRegion');
+  const usePhrases = document.getElementById('usePhrases');
+  const logEl      = document.getElementById('log');
+  const connBanner = document.getElementById('connBanner');
+
+  let ws            = null;
+  let audioCtx      = null;
+  let mediaStream   = null;
+  let workletNode   = null;
+  let sourceNode    = null;
+  let recording     = false;
+  let bytesSent     = 0;
+  let finalText     = '';
+  let interimText   = '';
+  let activePhrase  = null;
+
+  // Show server region on load
+  fetch('/health').then(r => r.json()).then(d => {
+    metaRegion.textContent = d.region || '—';
+    if (!d.key_configured) {
+      showBanner('Server is missing AZURE_SPEECH_KEY — recording will fail until it is set in Render.');
+    }
+  }).catch(() => {
+    showBanner('Could not reach server health endpoint.');
+  });
+
+  function showBanner(msg) {
+    connBanner.textContent = msg;
+    connBanner.classList.remove('hidden');
+  }
+  function hideBanner() {
+    connBanner.classList.add('hidden');
+  }
+
+  // Phrase click highlights
+  document.querySelectorAll('.phrases li').forEach(li => {
+    li.addEventListener('click', () => {
+      document.querySelectorAll('.phrases li').forEach(x => {
+        if (x !== li) x.style.outline = 'none';
+      });
+      li.style.outline = '2px solid var(--navy)';
+      li.style.outlineOffset = '-2px';
+      activePhrase = li;
+    });
+  });
+
+  micBtn.addEventListener('click', async () => {
+    if (recording) {
+      await stopRecording();
+    } else {
+      await startRecording();
+    }
+  });
+
+  // ====================================================================
+  // PCM capture worklet (16 kHz, 16-bit mono)
+  //
+  // AudioWorklet runs in a separate thread and gives us raw float32
+  // samples we can downsample and convert to 16-bit PCM for Azure.
+  // ====================================================================
+  const WORKLET_CODE = `
+    class PCMWorklet extends AudioWorkletProcessor {
+      constructor() {
+        super();
+        this._buffer = [];
+        this._targetRate = 16000;
+      }
+      process(inputs) {
+        const input = inputs[0];
+        if (input && input[0]) {
+          const ch = input[0];
+          // Post a copy of the float32 samples to the main thread
+          this.port.postMessage(ch.slice(0));
+        }
+        return true;
+      }
+    }
+    registerProcessor('pcm-worklet', PCMWorklet);
+  `;
+
+  function floatTo16BitPCM(float32Array) {
+    const out = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+      let s = Math.max(-1, Math.min(1, float32Array[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return out;
+  }
+
+  function downsampleBuffer(buffer, inSampleRate, outSampleRate) {
+    if (outSampleRate === inSampleRate) return buffer;
+    const sampleRateRatio = inSampleRate / outSampleRate;
+    const newLength = Math.round(buffer.length / sampleRateRatio);
+    const result = new Float32Array(newLength);
+    let offsetResult = 0;
+    let offsetBuffer = 0;
+    while (offsetResult < result.length) {
+      const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+      let accum = 0, count = 0;
+      for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+        accum += buffer[i];
+        count++;
+      }
+      result[offsetResult] = count > 0 ? accum / count : 0;
+      offsetResult++;
+      offsetBuffer = nextOffsetBuffer;
+    }
+    return result;
+  }
+
+  async function startRecording() {
+    hideBanner();
+    finalText = '';
+    interimText = '';
+    bytesSent = 0;
+    updateResult();
+    metaBytes.textContent = '0 KB';
+    metaStatus.textContent = 'connecting';
+
+    // 1. Open WebSocket
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${proto}://${location.host}/ws`;
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.binaryType = 'arraybuffer';
+    } catch (e) {
+      showBanner('Could not open WebSocket: ' + e.message);
+      metaStatus.textContent = 'error';
+      return;
+    }
+
+    await new Promise((resolve, reject) => {
+      ws.onopen = resolve;
+      ws.onerror = () => reject(new Error('ws error'));
+      setTimeout(() => reject(new Error('ws timeout')), 10000);
+    }).catch(err => {
+      showBanner('WebSocket failed: ' + err.message);
+      metaStatus.textContent = 'error';
+      ws = null;
+    });
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    ws.onmessage = (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        handleServerMessage(msg);
+      } catch (e) {
+        console.error('bad msg from server', evt.data);
+      }
+    };
+    ws.onclose = () => {
+      if (recording) {
+        metaStatus.textContent = 'closed';
+        cleanupAudio();
+        recording = false;
+        micBtn.classList.remove('recording');
+        micBtn.textContent = '🎙';
+        micLabel.textContent = 'Tap to start recording';
+      }
+    };
+
+    // 2. Send start frame
+    ws.send(JSON.stringify({ type: 'start', use_phrases: usePhrases.checked }));
+
+    // 3. Get microphone
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+      });
+    } catch (e) {
+      showBanner('Microphone permission denied.');
+      metaStatus.textContent = 'error';
+      ws.close();
+      return;
+    }
+
+    // 4. Set up AudioContext + worklet
+    audioCtx = new AudioContext();
+    const blob = new Blob([WORKLET_CODE], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    try {
+      await audioCtx.audioWorklet.addModule(url);
+    } catch (e) {
+      showBanner('AudioWorklet failed to load: ' + e.message);
+      metaStatus.textContent = 'error';
+      ws.close();
+      return;
+    }
+
+    workletNode = new AudioWorkletNode(audioCtx, 'pcm-worklet');
+    sourceNode = audioCtx.createMediaStreamSource(mediaStream);
+    sourceNode.connect(workletNode);
+    // Don't connect worklet to destination — we don't want feedback.
+
+    const inputRate = audioCtx.sampleRate;
+    workletNode.port.onmessage = (e) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const floats = e.data;
+      const downsampled = downsampleBuffer(floats, inputRate, 16000);
+      const pcm = floatTo16BitPCM(downsampled);
+      ws.send(pcm.buffer);
+      bytesSent += pcm.buffer.byteLength;
+      metaBytes.textContent = `${(bytesSent / 1024).toFixed(1)} KB`;
+    };
+
+    recording = true;
+    micBtn.classList.add('recording');
+    micBtn.textContent = '■';
+    micLabel.textContent = 'Recording… tap to stop';
+    metaStatus.textContent = 'recording';
+  }
+
+  async function stopRecording() {
+    if (!recording) return;
+    recording = false;
+    micLabel.textContent = 'Finishing transcription…';
+    micBtn.disabled = true;
+    metaStatus.textContent = 'finalizing';
+
+    // Tell server to stop, then close the WS once we've had a chance
+    // to receive the final segment.
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ type: 'stop' }));
+      } catch (e) {
+        console.error(e);
+      }
+      // Give Azure ~2s to flush the last recognition segment
+      setTimeout(() => {
+        try { ws.close(); } catch (e) {}
+      }, 2000);
+    }
+    cleanupAudio();
+
+    setTimeout(() => {
+      micBtn.disabled = false;
+      micBtn.classList.remove('recording');
+      micBtn.textContent = '🎙';
+      micLabel.textContent = 'Tap to start recording';
+      if (metaStatus.textContent === 'finalizing') metaStatus.textContent = 'idle';
+
+      if (activePhrase && finalText) {
+        activePhrase.classList.add('spoken');
+        activePhrase.style.outline = 'none';
+        activePhrase = null;
+      }
+    }, 2300);
+  }
+
+  function cleanupAudio() {
+    try { workletNode && workletNode.disconnect(); } catch (e) {}
+    try { sourceNode && sourceNode.disconnect(); } catch (e) {}
+    try { audioCtx && audioCtx.close(); } catch (e) {}
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+    }
+    workletNode = null;
+    sourceNode = null;
+    audioCtx = null;
+    mediaStream = null;
+  }
+
+  function handleServerMessage(msg) {
+    if (msg.type === 'ready') {
+      metaStatus.textContent = 'streaming';
+    } else if (msg.type === 'interim') {
+      interimText = msg.text || '';
+      updateResult();
+    } else if (msg.type === 'final') {
+      finalText = (finalText ? finalText + ' ' : '') + (msg.text || '');
+      interimText = '';
+      updateResult();
+      addLog(msg.text);
+    } else if (msg.type === 'session_stopped') {
+      metaStatus.textContent = 'idle';
+    } else if (msg.type === 'error') {
+      showBanner('Server: ' + msg.message);
+      metaStatus.textContent = 'error';
+    }
+  }
+
+  function updateResult() {
+    if (!finalText && !interimText) {
+      result.classList.add('empty');
+      result.textContent = 'Result will appear here as you speak.';
+      return;
+    }
+    result.classList.remove('empty');
+    result.innerHTML = '';
+    if (finalText) {
+      const f = document.createElement('span');
+      f.className = 'final';
+      f.textContent = finalText;
+      result.appendChild(f);
+    }
+    if (interimText) {
+      if (finalText) result.appendChild(document.createTextNode(' '));
+      const i = document.createElement('span');
+      i.className = 'interim';
+      i.textContent = interimText;
+      result.appendChild(i);
+    }
+  }
+
+  function addLog(text) {
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const safe = (text || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    entry.innerHTML = `<div class="t">${now}</div><div class="text">${safe}</div>`;
+    logEl.insertBefore(entry, logEl.firstChild);
+  }
+})();
+</script>
+</body>
+</html>
