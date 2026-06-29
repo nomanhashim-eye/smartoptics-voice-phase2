@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartOptics — eGOS Mock-ups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f3f6f5;--surface:#fff;--border:#e2e8e6;--ink:#0e1e1c;--ink-2:#2a3d3a;--muted:#6b7d79;--faint:#9aaaa6;
+    --mint:#4fb591;--mint-deep:#2d8e6b;--mint-soft:#dff2ea;--mint-tint:#f0faf6;--sun:#f5b754;--sun-tint:#fcf2dc;
+    --shadow:0 4px 14px -6px rgba(14,30,28,.07),0 1px 3px rgba(14,30,28,.05);--shadow-lg:0 18px 40px -16px rgba(14,30,28,.18);--r:14px;--r-lg:20px;--r-pill:999px}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Plus Jakarta Sans',-apple-system,sans-serif;background:radial-gradient(circle at 50% -10%,#eaf2ef,#e2eae7);
+    color:var(--ink);min-height:100vh;padding:46px 20px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto}
+  .head{display:flex;align-items:center;gap:13px;margin-bottom:8px}
+  .mark{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--mint),var(--mint-deep));color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;box-shadow:0 6px 14px -4px rgba(45,142,107,.5)}
+  h1{font-size:23px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-weight:600;font-size:13.5px;margin:6px 0 30px;line-height:1.5;max-width:680px}
+  .sub b{color:var(--ink-2)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+  .card{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+    padding:22px;box-shadow:var(--shadow);text-decoration:none;color:inherit;transition:.16s}
+  .card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--mint)}
+  .ic{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;margin-bottom:14px}
+  .ic.a{background:var(--mint-soft);color:var(--mint-deep)}.ic.b{background:var(--sun-tint);color:#8a5424}.ic.c{background:#e9ecfb;color:#41429c}
+  .ct{font-size:16px;font-weight:800;margin-bottom:6px}
+  .cd{font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.5;flex:1}
+  .go{margin-top:16px;font-size:12px;font-weight:800;color:var(--mint-deep);display:flex;align-items:center;gap:7px}
+  .tag{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.05em;background:var(--sun-tint);color:#8a5424;
+    border:1px dashed var(--sun);padding:2px 8px;border-radius:var(--r-pill);margin-top:10px;align-self:flex-start}
+  .note{margin-top:30px;background:var(--mint-tint);border:1px solid var(--mint-soft);border-radius:var(--r);padding:14px 18px;
+    font-size:12px;color:var(--ink-2);font-weight:600;line-height:1.55}
+  .note b{color:var(--mint-deep)}
+  .foot{margin-top:22px;color:var(--faint);font-size:11px;font-weight:600}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head"><div class="mark">S</div><h1>SmartOptics — eGOS module mock-ups</h1></div>
+    <div class="sub">Clickable prototypes of the NHS England <b>eGOS</b> module for the SmartOptics cloud PMS. Every dashed/blue
+      <b>connector</b> opens a pop-up explaining where it leads in the production PMS and what would happen. Open any screen below.</div>
+
+    <div class="grid">
+      <a class="card" href="https://htmlpreview.github.io/?https://github.com/nomanhashim-eye/smartoptics-voice-phase2/blob/claude/session-sync-devices-tu7ut3/docs/egos-mockup.html">
+        <div class="ic a">📋</div>
+        <div class="ct">eGOS claims screen</div>
+        <div class="cd">The main management screen — worklists, status tabs, the claims list with the 5-step readiness checklist, and a claim-detail view. Connectors to Patient Record, Diary, Till, signing device, NHS Gateway, BI and Setup.</div>
+        <div class="go">Open screen →</div>
+      </a>
+      <a class="card" href="https://htmlpreview.github.io/?https://github.com/nomanhashim-eye/smartoptics-voice-phase2/blob/claude/session-sync-devices-tu7ut3/docs/egos-pvn-domiciliary.html">
+        <div class="ic b">✈</div>
+        <div class="ct">Domiciliary — PVN &amp; GOS6</div>
+        <div class="cd">The home / care-home workflow: venues, Pre-Visit Notifications, the PVN→Accepted→GOS6 flow, and care-home batch visits.</div>
+        <span class="tag">OPTIX GAP — differentiator</span>
+        <div class="go">Open screen →</div>
+      </a>
+      <a class="card" href="https://htmlpreview.github.io/?https://github.com/nomanhashim-eye/smartoptics-voice-phase2/blob/claude/session-sync-devices-tu7ut3/docs/egos-signing-device.html">
+        <div class="ic c">✍</div>
+        <div class="ct">egos.app signing device</div>
+        <div class="cd">The paired tablet — Patient / Performer / Contractor tabs, real-time pushed signing sessions, batch signing, and the signature returning to the claim.</div>
+        <div class="go">Open screen →</div>
+      </a>
+    </div>
+
+    <div class="note"><b>How to read them:</b> these are visual prototypes, not the live app. A single click on any connector (a blue dashed chip, a launcher, the voice bar) opens a “<b>In production this navigates to…</b>” pop-up — the same review affordance used in the Patient Detailed View. Amber <b>OPTIX GAP</b> tags mark differentiators competitors don’t have.</div>
+    <div class="foot">SmartOptics cloud PMS · eGOS · prototype set · branch claude/session-sync-devices-tu7ut3</div>
+  </div>
+</body>
+</html>
