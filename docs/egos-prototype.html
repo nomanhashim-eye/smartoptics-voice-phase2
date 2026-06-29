@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartOptics — eGOS Module Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f3f6f5; --bg-2:#e9efed; --surface:#ffffff; --surface-2:#f7faf9;
+    --border:#e2e8e6; --border-soft:#eef2f0;
+    --ink:#0e1e1c; --ink-2:#2a3d3a; --muted:#6b7d79; --faint:#9aaaa6;
+    --mint:#4fb591; --mint-deep:#2d8e6b; --mint-soft:#dff2ea; --mint-tint:#f0faf6;
+    --coral:#f47565; --coral-deep:#e85a48; --coral-soft:#fde2dd;
+    --sun:#f5b754; --sun-soft:#fdebcc; --sun-tint:#fcf2dc;
+    --indigo:#6b6cd9; --indigo-soft:#e2e3f7;
+    --sky:#3f8fd1; --sky-soft:#dcecf9;
+    --shadow-sm:0 1px 2px rgba(14,30,28,0.04);
+    --shadow:0 4px 14px -6px rgba(14,30,28,0.06), 0 1px 3px rgba(14,30,28,0.04);
+    --shadow-lg:0 12px 32px -10px rgba(14,30,28,0.10);
+    --shadow-xl:0 24px 60px -16px rgba(14,30,28,0.22), 0 8px 24px -8px rgba(14,30,28,0.12);
+    --r:14px; --r-lg:20px; --r-pill:999px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Plus Jakarta Sans',-apple-system,sans-serif;background:var(--bg);color:var(--ink);
+    font-size:13px;-webkit-font-smoothing:antialiased}
+  .mono{font-family:'DM Mono',monospace}
+
+  /* ---------- view switcher ---------- */
+  .switcher{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:9px;background:var(--ink);padding:9px 16px}
+  .switcher .br{display:flex;align-items:center;gap:9px;color:#fff;margin-right:8px}
+  .switcher .mk{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--mint),var(--mint-deep));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px}
+  .switcher .bt{font-weight:800;font-size:13px;letter-spacing:-.01em}
+  .sbtn{height:32px;padding:0 14px;border-radius:var(--r-pill);border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);
+    color:rgba(255,255,255,.8);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px}
+  .sbtn:hover{background:rgba(255,255,255,.14);color:#fff}
+  .sbtn.on{background:var(--mint-deep);border-color:var(--mint-deep);color:#fff}
+  .sbtn .tg{font-size:8px;font-weight:800;background:var(--sun);color:#5a3d09;padding:1px 5px;border-radius:var(--r-pill)}
+  .switcher .hint{margin-left:auto;color:rgba(255,255,255,.5);font-size:10.5px;font-weight:600}
+
+  /* ---------- views ---------- */
+  .view{display:none}
+  .view.active{display:block}
+  .view-claims.active,.view-dom.active{padding:14px 18px}
+  .view-sign.active{display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px 16px;
+    background:radial-gradient(circle at 50% 0%,#e7efec,#dde6e3);min-height:calc(100vh - 50px)}
+  .app{min-height:calc(100vh - 80px);display:flex;flex-direction:column;gap:14px}
+
+  /* ---------- TOP BAR (claims/dom) ---------- */
+  .topbar{height:56px;display:flex;align-items:center;gap:16px;flex-shrink:0;padding:0 4px}
+  .brand{display:flex;flex-direction:column;line-height:1.05;min-width:182px}
+  .brand .logo{display:flex;align-items:center;gap:9px}
+  .brand .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--mint),var(--mint-deep));
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;box-shadow:0 4px 10px -3px rgba(45,142,107,.45)}
+  .brand .pname{font-size:15px;font-weight:800;letter-spacing:-.02em}
+  .brand .powered{font-size:9.5px;color:var(--faint);font-weight:600;margin-left:39px;margin-top:1px}
+  .navctl{display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .navbtn{height:38px;padding:0 16px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);
+    color:var(--ink-2);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:var(--shadow-sm)}
+  .navbtn:hover{border-color:var(--mint);color:var(--mint-deep)}
+  .navbtn.home{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .llm{flex:1;display:flex;align-items:center;gap:11px;background:var(--surface);border:1.5px solid var(--mint);
+    border-radius:var(--r-pill);padding:0 18px;height:42px;box-shadow:0 0 0 3px var(--mint-soft);cursor:pointer}
+  .llm .spark{width:18px;height:18px;color:var(--mint-deep);flex-shrink:0}
+  .llm .ph{flex:1;color:var(--faint);font-weight:500;font-size:13px}
+  .llm .mic{font-size:9px;font-weight:800;letter-spacing:.06em;color:var(--mint-deep);background:var(--mint-soft);padding:3px 9px;border-radius:var(--r-pill)}
+  .tb-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .iconbtn{width:38px;height:38px;border-radius:50%;border:1px solid var(--border);background:var(--surface);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);position:relative;box-shadow:var(--shadow-sm)}
+  .iconbtn:hover{color:var(--ink);border-color:var(--mint)}
+  .iconbtn .dot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--coral);border:1.5px solid var(--surface)}
+  .clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;padding-left:6px;border-left:1px solid var(--border);height:30px;justify-content:center}
+  .clock .t{font-size:13px;font-weight:800}.clock .d{font-size:10px;color:var(--muted);font-weight:600}
+
+  /* ---------- MAIN + SIDEBAR ---------- */
+  .main{flex:1;display:flex;gap:16px;overflow:visible}
+  .sidebar{width:240px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);
+    display:flex;flex-direction:column;flex-shrink:0;box-shadow:var(--shadow-sm)}
+  .branch{margin:8px 14px 6px;padding:11px 13px;border-radius:var(--r);background:var(--mint-tint);
+    border:1px solid var(--mint-soft);display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+  .branch .bn{font-size:12.5px;font-weight:800}.branch .bs{font-size:10px;color:var(--mint-deep);font-weight:700}
+  .modlabel{margin:14px 14px 0;padding:7px 12px;border-radius:9px;background:var(--ink);color:#fff;display:flex;align-items:center;gap:8px}
+  .modlabel .dotm{width:6px;height:6px;border-radius:50%;background:var(--mint)}
+  .modlabel.gos6 .dotm{background:var(--sun)}
+  .modlabel .mt{font-size:11px;font-weight:800;letter-spacing:.06em}.modlabel .ms{margin-left:auto;font-size:8.5px;font-weight:700;color:rgba(255,255,255,.55)}
+  .nav{flex:1;overflow:auto;padding:6px 12px 12px}
+  .nav-label{font-size:9.5px;font-weight:800;color:var(--faint);letter-spacing:.1em;text-transform:uppercase;margin:15px 10px 6px;display:flex;align-items:center;gap:6px}
+  .nav-label:first-child{margin-top:8px}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:11px;cursor:pointer;color:var(--ink-2);font-weight:600;font-size:12.5px;transition:.14s;margin-bottom:2px}
+  .nav-item:hover{background:var(--bg-2);transform:translateX(2px)}
+  .nav-item.active{background:var(--ink);color:#fff;box-shadow:0 5px 14px -4px rgba(14,30,28,.28)}
+  .nav-ic{width:22px;height:22px;border-radius:7px;flex-shrink:0;background:var(--bg-2);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:11px}
+  .nav-item.active .nav-ic{background:rgba(255,255,255,.16);color:#fff}
+  .nav-bdg{margin-left:auto;font-size:10px;font-weight:800;background:var(--bg-2);color:var(--ink-2);min-width:20px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+  .nav-item.active .nav-bdg{background:rgba(255,255,255,.22);color:#fff}
+  .nav-bdg.warn{background:var(--coral);color:#fff}.nav-bdg.amber{background:var(--sun);color:#5a3d09}.nav-bdg.green{background:var(--mint);color:#06371d}
+  .launch{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:11px;cursor:pointer;color:var(--ink-2);font-weight:600;font-size:12.5px;transition:.14s;margin-bottom:2px;border:1px dashed var(--border)}
+  .launch:hover{border-color:var(--mint);color:var(--mint-deep);background:var(--mint-tint)}
+  .launch .nav-ic{background:#eef0fb;color:var(--indigo)}
+  .launch .ctx{margin-left:auto;font-size:8.5px;font-weight:800;color:var(--faint)}
+
+  /* ---------- CONTENT shared ---------- */
+  .content{flex:1;display:flex;flex-direction:column;gap:14px;min-width:0}
+  .mhead{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:16px 22px;display:flex;align-items:center;gap:18px}
+  .mhead .lic{width:46px;height:46px;border-radius:13px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0}
+  .mhead .lic.egos{background:linear-gradient(135deg,var(--mint),var(--mint-deep))}
+  .mhead .lic.gos6{background:linear-gradient(135deg,var(--sun),#d9923a)}
+  .mhead .id .t{font-size:18px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+  .mhead .id .s{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px}
+  .mhead .stats{margin-left:auto;display:flex;gap:10px}
+  .stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);padding:9px 15px;display:flex;flex-direction:column;gap:1px;min-width:74px;cursor:pointer;transition:.14s}
+  .stat:hover{border-color:var(--mint)}
+  .stat .n{font-size:19px;font-weight:800;font-family:'DM Mono',monospace}
+  .stat .l{font-size:9.5px;color:var(--faint);font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+  .stat.green .n{color:var(--mint-deep)} .stat.amber .n{color:#b87a16} .stat.coral .n{color:var(--coral-deep)}
+
+  .tabs{display:flex;gap:7px;flex-wrap:wrap}
+  .tab{padding:8px 16px;border-radius:var(--r-pill);background:var(--surface);border:1px solid var(--border);cursor:pointer;color:var(--muted);font-weight:700;font-size:12px;display:flex;align-items:center;gap:8px;box-shadow:var(--shadow-sm)}
+  .tab:hover{border-color:var(--mint)}
+  .tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .tab .c{font-family:'DM Mono',monospace;font-size:11px;background:var(--bg-2);color:var(--ink-2);padding:1px 7px;border-radius:var(--r-pill)}
+  .tab.active .c{background:rgba(255,255,255,.2);color:#fff}
+
+  .abar{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .go{height:40px;padding:0 18px;border-radius:var(--r-pill);border:1px solid var(--ink);background:var(--ink);color:#fff;font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:9px;box-shadow:var(--shadow)}
+  .go:hover{background:var(--mint-deep);border-color:var(--mint-deep)}
+  .abtn{height:38px;padding:0 15px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);color:var(--ink-2);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:var(--shadow-sm)}
+  .abtn:hover{border-color:var(--mint);color:var(--mint-deep)}
+  .abar .sep{flex:1}
+  .legendchip{font-size:10.5px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:7px}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+  .panel.grow{flex:1}
+  .panel-h{padding:14px 18px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:10px}
+  .panel-h .pt{font-size:13px;font-weight:800}.panel-h .pc{font-size:10px;font-weight:800;color:var(--faint);background:var(--bg-2);padding:2px 9px;border-radius:var(--r-pill)}
+  .panel-h .add{margin-left:auto;height:30px;padding:0 12px;border-radius:var(--r-pill);border:1px solid var(--ink);background:var(--ink);color:#fff;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}
+  .panel-h .add:hover{background:var(--mint-deep);border-color:var(--mint-deep)}
+  .panel-bd{padding:12px 14px;overflow:auto}
+  table{width:100%;border-collapse:collapse}
+  thead th{font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:800;text-align:left;padding:10px 16px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+  tbody td{padding:11px 16px;border-bottom:1px solid var(--border-soft);font-weight:600;color:var(--ink-2);white-space:nowrap}
+  tbody tr{cursor:pointer;transition:.12s}tbody tr:hover{background:var(--mint-tint)}
+  .ftype{font-weight:800;color:var(--ink);font-size:12px}
+  .ref{font-family:'DM Mono',monospace;color:var(--muted);font-size:11.5px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:var(--r-pill);font-size:10.5px;font-weight:800}
+  .pill .pd{width:6px;height:6px;border-radius:50%}
+  .s-prog{background:var(--sun-tint);color:#8a5708}.s-prog .pd{background:#b87a16}
+  .s-ready{background:var(--sky-soft);color:#1f5e8f}.s-ready .pd{background:var(--sky)}
+  .s-sub{background:var(--indigo-soft);color:#41429c}.s-sub .pd{background:var(--indigo)}
+  .s-acc{background:var(--mint-soft);color:var(--mint-deep)}.s-acc .pd{background:var(--mint-deep)}
+  .s-paid{background:#d7f0ec;color:#107c70}.s-paid .pd{background:#16a394}
+  .s-rej{background:var(--coral-soft);color:var(--coral-deep)}.s-rej .pd{background:var(--coral-deep)}
+  .s-draft{background:var(--bg-2);color:var(--muted)}.s-draft .pd{background:var(--muted)}
+  .ready{display:flex;gap:4px;align-items:center}
+  .ready i{width:15px;height:15px;border-radius:5px;background:var(--bg-2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:var(--faint)}
+  .ready i.ok{background:var(--mint);color:#06371d}
+  .ready .frac{font-size:10px;font-weight:800;color:var(--muted);margin-left:3px;font-family:'DM Mono',monospace}
+
+  .conn{display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:700;color:var(--sky);border-bottom:1px dashed var(--sky);padding-bottom:1px}
+  .conn:hover{color:#1f5e8f;border-bottom-style:solid}
+  .conn::after{content:"↗";font-size:9px;opacity:.8}.conn.in::after{content:"↘"}
+  .conn.flat{border:none;background:var(--sky-soft);color:#1f5e8f;padding:2px 9px;border-radius:var(--r-pill)}
+  .diff{display:inline-flex;align-items:center;gap:5px;cursor:pointer;background:var(--sun-tint);border:1px dashed var(--sun);color:#8a5424;font-size:9px;font-weight:800;letter-spacing:.04em;padding:2px 8px;border-radius:var(--r-pill)}
+  .diff:hover{background:var(--sun-soft)}
+
+  /* ---------- claim detail modal ---------- */
+  .cm-mask{position:fixed;inset:0;background:rgba(14,30,28,.40);display:none;align-items:center;justify-content:center;z-index:80;padding:24px}
+  .cm-mask.on{display:flex}
+  .cm{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow-xl);width:760px;max-width:96vw;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:pop .14s ease-out}
+  @keyframes pop{from{transform:translateY(8px) scale(.99);opacity:0}to{transform:none;opacity:1}}
+  .cm-hdr{padding:16px 22px;display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--border)}
+  .cm-lic{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--mint),var(--mint-deep));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0}
+  .cm-ht .crumb{font-size:9.5px;font-weight:800;color:var(--faint);letter-spacing:.08em;text-transform:uppercase}
+  .cm-ht .ttl{font-size:17px;font-weight:800;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+  .cm-ht .sub{font-size:11px;font-weight:700;color:var(--muted);margin-top:2px}
+  .cm-hdr .x{margin-left:auto;width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-weight:900;color:var(--muted);font-size:15px}
+  .cm-hdr .x:hover{color:var(--coral-deep);border-color:var(--coral)}
+  .cm-body{padding:18px 22px;overflow-y:auto;background:#eef4f2;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .cm-body .span2{grid-column:1/-1}
+  .blk{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-sm);padding:13px 15px}
+  .blk h4{font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);font-weight:800;margin-bottom:10px}
+  .task{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-soft)}
+  .task:last-child{border-bottom:none}
+  .task .bx{width:19px;height:19px;border-radius:6px;flex:none;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900}
+  .task .bx.ok{background:var(--mint);color:#06371d} .task .bx.no{background:var(--coral-soft);color:var(--coral-deep)}
+  .task .lbl{flex:1;font-weight:700;color:var(--ink-2)}
+  .row2{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-weight:700;color:var(--ink-2)}
+  .row2 .k{color:var(--muted)}.row2 b{font-family:'DM Mono',monospace;color:var(--ink)}
+  .cm-foot{padding:14px 22px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface)}
+  .cm-foot .fnote{font-size:10.5px;color:var(--faint);font-weight:700;flex:1}
+
+  /* ---------- domiciliary specifics ---------- */
+  .cols{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;flex:1;min-height:0}
+  .venue{border:1px solid var(--border);border-radius:var(--r);padding:13px 15px;margin-bottom:11px;background:var(--surface-2);cursor:pointer;transition:.14s}
+  .venue:hover{border-color:var(--mint);box-shadow:var(--shadow)}
+  .venue .vh{display:flex;align-items:center;gap:10px}.venue .vn{font-size:13.5px;font-weight:800}
+  .vtype{font-size:9px;font-weight:800;letter-spacing:.03em;padding:2px 8px;border-radius:var(--r-pill);background:var(--indigo-soft);color:#41429c}
+  .venue .va{font-size:11px;color:var(--muted);font-weight:600;margin-top:3px}
+  .venue .vf{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft)}
+  .chip{font-size:10px;font-weight:800;padding:3px 9px;border-radius:var(--r-pill);background:var(--bg-2);color:var(--ink-2)}
+  .batch{margin-left:auto;height:30px;padding:0 12px;border-radius:var(--r-pill);border:1px solid var(--sun);background:var(--sun-tint);color:#8a5424;font-family:inherit;font-size:10.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .batch:hover{background:var(--sun-soft)}
+  .flow{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-sm);padding:13px 18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .flow .step{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:800;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--border);padding:7px 12px;border-radius:var(--r-pill);cursor:pointer}
+  .flow .step:hover{border-color:var(--mint)}
+  .flow .step .n{width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center}
+  .flow .arr{color:var(--faint);font-weight:800}
+  .flow .fl-lab{font-size:9.5px;font-weight:800;color:var(--faint);letter-spacing:.06em;text-transform:uppercase;margin-right:4px}
+
+  /* ---------- signing device specifics ---------- */
+  .caption{max-width:780px;text-align:center;color:var(--muted);font-size:12.5px;font-weight:600;line-height:1.5}
+  .caption b{color:var(--ink-2)}.caption .conn{color:var(--sky);font-weight:800}
+  .device{width:880px;max-width:96vw;background:#0e1e1c;border-radius:34px;padding:14px;box-shadow:0 40px 90px -30px rgba(14,30,28,.55),0 0 0 2px rgba(255,255,255,.04) inset;position:relative}
+  .cam{position:absolute;top:24px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:#33524c}
+  .screen{background:var(--bg);border-radius:22px;overflow:hidden;display:flex;flex-direction:column;height:560px}
+  .appbar{height:54px;background:linear-gradient(135deg,var(--mint),var(--mint-deep));display:flex;align-items:center;gap:12px;padding:0 18px;color:#fff;position:relative}
+  .appbar .mk{width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:800}
+  .appbar .nm{font-weight:800;font-size:14px;letter-spacing:-.01em}.appbar .nm small{display:block;font-size:9px;font-weight:600;opacity:.8}
+  .appbar .prac{margin-left:auto;text-align:right;font-size:10.5px;font-weight:700;opacity:.95;line-height:1.3}
+  .appbar .out{margin-left:14px;height:30px;padding:0 13px;border-radius:var(--r-pill);border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}
+  .rtabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border)}
+  .rtab{flex:1;text-align:center;padding:13px 0;font-weight:800;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent}
+  .rtab.on{color:var(--mint-deep);border-bottom-color:var(--mint-deep);background:var(--mint-tint)}
+  .rtab small{display:block;font-size:9px;font-weight:700;color:var(--faint);margin-top:2px}.rtab.on small{color:var(--mint-deep)}
+  .sgrid{flex:1;display:flex;min-height:0}
+  .plist{width:300px;border-right:1px solid var(--border);background:var(--surface-2);display:flex;flex-direction:column}
+  .plist-h{padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border-soft)}
+  .plist-h .pt{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .refresh{margin-left:auto;height:28px;padding:0 11px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:10.5px;font-weight:800;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:6px}
+  .refresh:hover{border-color:var(--mint);color:var(--mint-deep)}
+  .pitems{overflow:auto;padding:8px}
+  .pitem{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:var(--r);cursor:pointer;border:1px solid transparent}
+  .pitem:hover{background:var(--surface);border-color:var(--border)}
+  .pitem.on{background:var(--surface);border-color:var(--mint);box-shadow:var(--shadow)}
+  .pitem .av{width:34px;height:34px;border-radius:10px;background:var(--indigo-soft);color:#41429c;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+  .pitem .nm{font-size:12.5px;font-weight:800}.pitem .mt{font-size:10px;color:var(--muted);font-weight:600}
+  .ftag{font-size:8.5px;font-weight:800;padding:1px 6px;border-radius:var(--r-pill);background:var(--bg);color:var(--ink-2);margin-left:auto}
+  .ck{margin-left:auto;width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#fff}
+  .ck.on{background:var(--mint-deep);border-color:var(--mint-deep)}
+  .pane{flex:1;display:flex;flex-direction:column;padding:16px 20px;overflow:auto}
+  .crumb{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .who{font-size:18px;font-weight:800;letter-spacing:-.01em;margin-top:2px}
+  .decl{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 15px;margin-top:12px;box-shadow:var(--shadow)}
+  .decl h5{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  .dl{display:flex;align-items:flex-start;gap:9px;font-size:12px;font-weight:600;color:var(--ink-2);padding:5px 0}
+  .dl .tick{color:var(--mint-deep);font-weight:900;flex-shrink:0}
+  .decl .small{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:8px;line-height:1.45;border-top:1px solid var(--border-soft);padding-top:8px;font-style:italic}
+  .padwrap{margin-top:14px;flex:1;display:flex;flex-direction:column}
+  .padlab{font-size:11px;font-weight:800;color:var(--ink-2);margin-bottom:7px;display:flex;align-items:center;gap:8px}
+  .pad{flex:1;min-height:110px;background:#fff;border:2px dashed var(--mint);border-radius:var(--r);position:relative;overflow:hidden;cursor:crosshair}
+  .pad .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:12px;font-weight:700}
+  .pad .line{position:absolute;left:8%;right:8%;bottom:22%;border-bottom:1.5px solid var(--border)}
+  .pad .xmark{position:absolute;left:8%;bottom:24%;color:var(--faint);font-weight:800}
+  .pactions{display:flex;gap:10px;margin-top:12px}
+  .clear{height:44px;padding:0 18px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:13px;font-weight:800;color:var(--muted);cursor:pointer}
+  .submit{flex:1;height:44px;border-radius:var(--r-pill);border:1px solid var(--mint-deep);background:var(--mint-deep);color:#fff;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 8px 20px -8px rgba(45,142,107,.6)}
+  .submit:hover{background:#247a5b}
+  .batchbar{display:flex;align-items:center;gap:12px;background:var(--sun-tint);border:1px solid var(--sun);border-radius:var(--r);padding:11px 15px;margin-top:12px}
+  .batchbar .t{font-size:12px;font-weight:800;color:#8a5424}
+  .batchbar .gob{margin-left:auto;height:38px;padding:0 16px;border-radius:var(--r-pill);border:1px solid #8a5424;background:#8a5424;color:#fff;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}
+  .toast{position:absolute;left:50%;top:68px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:var(--r-pill);padding:9px 16px;font-size:11.5px;font-weight:700;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:9px;z-index:5}
+  .toast .d{width:8px;height:8px;border-radius:50%;background:var(--mint);animation:pp 1.6s infinite}
+  @keyframes pp{0%{box-shadow:0 0 0 0 rgba(79,181,145,.55)}70%{box-shadow:0 0 0 7px rgba(79,181,145,0)}100%{box-shadow:0 0 0 0 rgba(79,181,145,0)}}
+
+  /* ---------- cf popup (shared) ---------- */
+  .cf-mask{position:fixed;inset:0;background:rgba(14,30,28,.34);display:none;align-items:center;justify-content:center;z-index:95}
+  .cf-mask.on{display:flex}
+  .cf-box{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);max-width:460px;padding:24px 26px;border-top:4px solid var(--mint)}
+  .cf-box.nav{border-top-color:var(--ink)}.cf-box.diff{border-top-color:var(--sun)}
+  .cf-tag{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8a5424;background:#fcf2dc;border:1px dashed var(--sun);padding:3px 9px;border-radius:var(--r-pill);display:inline-block;margin-bottom:12px}
+  .cf-h{font-size:16px;font-weight:800;margin-bottom:8px}
+  .cf-p{font-size:12.5px;color:var(--ink-2);font-weight:600;line-height:1.5;margin-bottom:8px}
+  .cf-meta{font-size:11px;color:var(--faint);font-weight:700;margin-bottom:18px;line-height:1.5}
+  .cf-x{height:36px;padding:0 18px;border-radius:var(--r-pill);border:1px solid var(--ink);background:var(--ink);color:#fff;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}
+  .cf-x:hover{background:var(--mint-deep);border-color:var(--mint-deep)}
+  [data-cf]{cursor:pointer}
+</style>
+</head>
+<body>
+
+<!-- ============ VIEW SWITCHER ============ -->
+<div class="switcher">
+  <div class="br"><div class="mk">S</div><div class="bt">SmartOptics · eGOS prototype</div></div>
+  <button class="sbtn on" data-view="claims">📋 Claims screen</button>
+  <button class="sbtn" data-view="dom">✈ Domiciliary <span class="tg">OPTIX GAP</span></button>
+  <button class="sbtn" data-view="sign">✍ Signing device</button>
+  <span class="hint">Click any dashed/blue connector for “where it leads in production”.</span>
+</div>
+
+<!-- ============================================================= CLAIMS ============================================================= -->
+<section class="view view-claims active" id="view-claims">
+  <div class="app">
+    <div class="topbar">
+      <div class="brand"><div class="logo"><div class="mark">S</div><div class="pname">SmartOptics</div></div><div class="powered">Cloud PMS · eGOS module</div></div>
+      <div class="navctl">
+        <button class="navbtn" data-cf="nav" data-cf-what="the previous screen you came from" data-cf-why="Navigation control — Back returns to the last module/record without losing context.">← Back</button>
+        <button class="navbtn home" data-cf="nav" data-cf-what="the practice Home dashboard" data-cf-why="Home is the launch surface for every module; eGOS is one tile on it.">⌂ Home</button>
+      </div>
+      <div class="llm" data-cf="diff" data-cf-what="voice-driven claim capture — dictate the sight-test/dispense and the GOS fields populate hands-free" data-cf-why="DIFFERENTIATOR: built on SmartOptics’ streaming speech engine with an optical/GOS phrase list. No competitor PMS offers voice capture — and it is most valuable in domiciliary.">
+        <svg class="spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+        <span class="ph">“New GOS1 for the next patient…” — ask or dictate a claim</span><span class="mic">🎙 VOICE ON</span>
+      </div>
+      <div class="tb-actions">
+        <div class="iconbtn" data-cf="pop" data-cf-what="the notifications tray — rejected claims, statement-import results and deadline alerts" data-cf-why="Rejections and time-limit warnings raise a notification and a branch task so nothing is missed."><span class="dot"></span>🔔</div>
+        <div class="clock"><span class="t mono">14:32</span><span class="d">Mon 29 Jun</span></div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="sidebar">
+        <div class="branch" data-cf="nav" data-cf-what="the branch / contractor switcher" data-cf-why="eGOS identity (licence no, ODS code, PSK) is per branch — switching changes which contractor identity claims are submitted under.">
+          <div><div class="bn">Malvern Eyecare</div><div class="bs">Licence 12345678 · ODS F81234</div></div><span>▾</span>
+        </div>
+        <div class="modlabel"><span class="dotm"></span><span class="mt">eGOS — NHS ENGLAND</span><span class="ms">MODULE</span></div>
+        <div class="nav">
+          <div class="nav-label">Status</div>
+          <div class="nav-item active"><span class="nav-ic">▢</span>Current <span class="nav-bdg">18</span></div>
+          <div class="nav-item"><span class="nav-ic">↑</span>Submitted <span class="nav-bdg">6</span></div>
+          <div class="nav-item"><span class="nav-ic">✓</span>Accepted <span class="nav-bdg">22</span></div>
+          <div class="nav-item"><span class="nav-ic">✕</span>Rejected <span class="nav-bdg warn">3</span></div>
+          <div class="nav-item"><span class="nav-ic">£</span>Paid <span class="nav-bdg">140</span></div>
+          <div class="nav-label">Worklists</div>
+          <div class="nav-item"><span class="nav-ic">!</span>Unfinished <span class="nav-bdg">11</span></div>
+          <div class="nav-item"><span class="nav-ic">◷</span>Today’s claims <span class="nav-bdg">9</span></div>
+          <div class="nav-item"><span class="nav-ic">⇄</span>Takeaway outstanding <span class="nav-bdg amber">5</span></div>
+          <div class="nav-item"><span class="nav-ic">≠</span>Claimed ≠ paid <span class="nav-bdg amber">2</span></div>
+          <div class="nav-item"><span class="nav-ic">⏱</span>Time-limit ageing <span class="nav-bdg warn">4</span></div>
+          <div class="nav-label">Domiciliary <span class="diff" data-cf="diff" data-cf-what="full domiciliary GOS6 + PVN + venue workflow (see the Domiciliary tab above)" data-cf-why="DIFFERENTIATOR: Optix has no domiciliary/PVN at all. A large, growing care-home market we cover end-to-end.">OPTIX GAP</span></div>
+          <div class="launch" data-cf="nav" data-cf-what="the Pre-Visit Notification (PVN) workspace — see the Domiciliary tab" data-cf-why="Domiciliary requires a PVN accepted before a GOS6 can be claimed."><span class="nav-ic">✈</span>Pre-Visit Notifications <span class="ctx">PVN</span></div>
+          <div class="launch" data-cf="nav" data-cf-what="the Venues register — care homes / day centres" data-cf-why="A GOS6 needs a venue; linking many patients to one venue powers care-home batch visits."><span class="nav-ic">🏠</span>Venues / care homes <span class="ctx">CONTEXT</span></div>
+          <div class="nav-label">Other PMS modules</div>
+          <div class="launch" data-cf="nav" data-cf-what="Business Intelligence / Reporting — PCSE statement import, reconciliation & forecasting" data-cf-why="Payment reconciliation, under/over-paid detection and eGOS revenue forecasting live in BI."><span class="nav-ic">📊</span>BI / Reporting <span class="ctx">MODULE</span></div>
+          <div class="launch" data-cf="nav" data-cf-what="Branch Setup → Integrations → eGOS — licence no, ODS code, PCSE credentials + PSK, roles" data-cf-why="One-time per-branch config. PSK/credentials stored as secrets; Performer needs a GOC number."><span class="nav-ic">⚙</span>eGOS Setup <span class="ctx">CONFIG</span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="mhead">
+          <div class="lic egos">eGOS</div>
+          <div class="id"><div class="t">English eGOS Claims <span class="pill s-acc"><span class="pd"></span>NHS link live</span></div>
+            <div class="s">Contractor: Malvern Eyecare · ODS F81234 · 18 current · auto-submits as each claim completes its checklist</div></div>
+          <div class="stats">
+            <div class="stat coral" data-cf="pop" data-cf-what="the Rejected worklist — each rejection shows the PCSE reason and one-click correct-&-resubmit" data-cf-why="Rejections also raise a branch task. Edit only fields the patient hasn’t signed for, then resubmit."><span class="n">3</span><span class="l">Rejected</span></div>
+            <div class="stat amber" data-cf="pop" data-cf-what="the Time-limit ageing list — claims nearing the 3-month deadline" data-cf-why="As of 01/01/2024 claims must be submitted within 3 months. Uncollected GOS3 takeaways can be written off."><span class="n">4</span><span class="l">Ageing</span></div>
+            <div class="stat green" data-cf="nav" data-cf-what="BI / Reporting — eGOS income, claimed vs paid, forecast pipeline" data-cf-why="Live money view: claimed → accepted → paid, auto-reconciled against the PCSE statement, with forecast income."><span class="n">£3.2k</span><span class="l">This week</span></div>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab active">Current <span class="c">18</span></div><div class="tab">Submitted <span class="c">6</span></div>
+          <div class="tab">Accepted <span class="c">22</span></div><div class="tab">Rejected <span class="c">3</span></div><div class="tab">Paid <span class="c">140</span></div>
+        </div>
+        <div class="abar">
+          <button class="go" data-cf="pop" data-cf-what="the New GOS1 form — patient, eligibility & performer pre-filled from the open record/appointment" data-cf-why="Created from the patient record or by right-clicking a diary appointment. Immediately available on the paired tablet for the patient to sign.">＋ New GOS1</button>
+          <button class="abtn" data-cf="pop" data-cf-what="a GOS3 voucher inside the spectacle dispense — value calculated live" data-cf-why="GOS3 is raised within the dispense; the system picks the correct voucher type and highest legitimate value. Two-stage signature (order + collection).">＋ GOS3</button>
+          <button class="abtn" data-cf="pop" data-cf-what="a GOS4 repair/replacement voucher (from a dispense or external Rx)" data-cf-why="Adult GOS4 needs an NHS approval code; only the supplier/contractor signs.">＋ GOS4</button>
+          <button class="abtn" data-cf="nav" data-cf-what="the GOS6 domiciliary flow — see the Domiciliary tab" data-cf-why="GOS6 auto-finds the patient’s accepted PVN and fills the PVN reference + address where the test took place.">＋ GOS6</button>
+          <div class="sep"></div>
+          <div class="legendchip"><span class="conn flat">links to another module ↗</span> click any to see where it leads</div>
+        </div>
+        <div class="panel grow">
+          <div class="panel-h"><span class="pt">Current claims</span><span class="pc">18</span>
+            <span style="margin-left:auto;font-size:10.5px;color:var(--faint);font-weight:700">Readiness = Patient · Till · Performer · Perf-sign · Contr-sign → auto-submits at 5/5</span></div>
+          <table>
+            <thead><tr><th>Px ref</th><th>Patient</th><th>Form</th><th>Readiness</th><th>Status</th><th>Claimed</th><th>Source</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= DOMICILIARY ============================================================= -->
+<section class="view view-dom" id="view-dom">
+  <div class="app">
+    <div class="topbar">
+      <div class="brand"><div class="logo"><div class="mark">S</div><div class="pname">SmartOptics</div></div><div class="powered">Cloud PMS · eGOS · Domiciliary</div></div>
+      <div class="navctl">
+        <button class="navbtn" data-view="claims" data-jump="1">← eGOS claims</button>
+        <button class="navbtn home" data-cf="nav" data-cf-what="the practice Home dashboard" data-cf-why="Home is the launch surface for every module.">⌂ Home</button>
+      </div>
+      <div class="llm" data-cf="diff" data-cf-what="voice capture at the point of care — dictate the GOS6 findings hands-free on the visit" data-cf-why="DIFFERENTIATOR: domiciliary is where voice matters most — gloved, no desk, in a care home. No competitor offers this.">
+        <svg class="spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+        <span class="ph">“Start a GOS6 for the next resident…”</span><span class="mic">🎙 VOICE ON</span>
+      </div>
+      <div class="clock"><span class="t mono">14:32</span><span class="d">Mon 29 Jun</span></div>
+    </div>
+    <div class="main">
+      <div class="sidebar">
+        <div class="branch" data-cf="nav" data-cf-what="the branch / contractor switcher" data-cf-why="PVNs carry the branch’s contractor details — submitted under the correct identity.">
+          <div><div class="bn">Malvern Eyecare</div><div class="bs">Licence 12345678 · ODS F81234</div></div><span>▾</span>
+        </div>
+        <div class="modlabel gos6"><span class="dotm"></span><span class="mt">eGOS — DOMICILIARY</span><span class="ms">GOS6</span></div>
+        <div class="nav">
+          <div class="nav-label">Pre-Visit Notifications</div>
+          <div class="nav-item active"><span class="nav-ic">✈</span>All PVNs <span class="nav-bdg">12</span></div>
+          <div class="nav-item"><span class="nav-ic">✓</span>Accepted <span class="nav-bdg green">7</span></div>
+          <div class="nav-item"><span class="nav-ic">↑</span>Submitted <span class="nav-bdg">3</span></div>
+          <div class="nav-item"><span class="nav-ic">✕</span>Rejected <span class="nav-bdg warn">1</span></div>
+          <div class="nav-item"><span class="nav-ic">▢</span>Draft <span class="nav-bdg">1</span></div>
+          <div class="nav-label">Visits</div>
+          <div class="nav-item"><span class="nav-ic">🏠</span>Venues / care homes <span class="nav-bdg">6</span></div>
+          <div class="nav-item"><span class="nav-ic">📋</span>GOS6 to complete <span class="nav-bdg warn">4</span></div>
+          <div class="nav-item"><span class="nav-ic">📅</span>This week’s visits <span class="nav-bdg">2</span></div>
+          <div class="nav-label">Other PMS modules</div>
+          <div class="launch" data-cf="nav" data-cf-what="the Patient Record (Patient module)" data-cf-why="Patients are linked to venues from their record; creating a PVN from a record pre-fills the patient + assigned venue."><span class="nav-ic">👤</span>Patient Record <span class="ctx">MODULE</span></div>
+          <div class="launch" data-cf="nav" data-cf-what="BI / Reporting — domiciliary claim & payment reporting" data-cf-why="GOS6 reconciliation and ageing reporting live in BI alongside the rest of eGOS."><span class="nav-ic">📊</span>BI / Reporting <span class="ctx">MODULE</span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="mhead">
+          <div class="lic gos6">GOS6</div>
+          <div class="id"><div class="t">Domiciliary — PVN &amp; GOS6 <span class="diff" data-cf="diff" data-cf-what="the full domiciliary workflow (PVN → venues → care-home batch visits → GOS6)" data-cf-why="DIFFERENTIATOR: Optix has no domiciliary/PVN capability, and FLEX has no batch visits. A large, growing care-home market we own end-to-end.">OPTIX GAP</span></div>
+            <div class="s">Raise a PVN (venue + date/time, ≥24h ahead) → wait for Accepted → attach to a GOS6 on the visit. Link many patients to one venue for batch visits.</div></div>
+        </div>
+        <div class="flow">
+          <span class="fl-lab">Flow</span>
+          <span class="step" data-cf="pop" data-cf-what="the New PVN form — venue, date & time, patient(s); contractor details pre-filled" data-cf-why="A PVN must be raised ≥24h before the visit and specifies date AND time.">
+            <span class="n">1</span>Raise PVN</span><span class="arr">→</span>
+          <span class="step" data-cf="nav" data-cf-what="the NHS Gateway (PCSE) — PVN submission & status" data-cf-why="The PVN is submitted to PCSE and must reach Accepted before a GOS6 can be claimed.">
+            <span class="n">2</span>Submit → Accepted</span><span class="arr">→</span>
+          <span class="step" data-cf="pop" data-cf-what="the GOS6 form — auto-finds the accepted PVN and fills the reference + address" data-cf-why="On the visit, the GOS6 links to the accepted PVN automatically. Signatures captured on the device at the point of care.">
+            <span class="n">3</span>GOS6 on visit</span><span class="arr">→</span>
+          <span class="step" data-view="sign" data-jump="1">
+            <span class="n">4</span>Sign &amp; submit →</span>
+        </div>
+        <div class="cols">
+          <div class="panel">
+            <div class="panel-h"><span class="pt">Venues / care homes</span><span class="pc">6</span>
+              <button class="add" data-cf="pop" data-cf-what="the New Venue form — name, address, postcode, premises type, contact" data-cf-why="Premises type (Day Centre / Home / Nursing / Residential / Sheltered) is required on the claim.">＋ New venue</button></div>
+            <div class="panel-bd">
+              <div class="venue" data-cf="nav" data-cf-what="the Oakwood Nursing Home venue record — 9 linked residents" data-cf-why="Opens the venue with its linked patients; from here you can raise a batch of PVNs for one visit date.">
+                <div class="vh"><span class="vn">Oakwood Nursing Home</span><span class="vtype">N · Nursing</span></div>
+                <div class="va">432 Hill Street, Worcester · WR2 1AG · Contact: Mad Lad</div>
+                <div class="vf"><span class="chip">9 residents</span><span class="chip">3 PVNs accepted</span>
+                  <button class="batch" data-cf="pop" data-cf-what="the batch-PVN builder — raise a PVN for many residents at this venue for one visit date" data-cf-why="DIFFERENTIATOR: care-home batch visits. Select residents, set the visit date/time once, and PVNs are raised for all in one action.">⚡ Batch visit</button></div>
+              </div>
+              <div class="venue" data-cf="nav" data-cf-what="the Lime Court Care Home venue record — 5 linked residents" data-cf-why="Opens the venue with its linked patients and PVN history.">
+                <div class="vh"><span class="vn">Lime Court Care Home</span><span class="vtype">R · Residential</span></div>
+                <div class="va">12 Lime Avenue, Malvern · WR14 2AZ · Contact: J. Roberts</div>
+                <div class="vf"><span class="chip">5 residents</span><span class="chip">2 PVNs accepted</span>
+                  <button class="batch" data-cf="pop" data-cf-what="the batch-PVN builder for Lime Court" data-cf-why="Raise PVNs for all selected residents for one visit date/time in a single action.">⚡ Batch visit</button></div>
+              </div>
+              <div class="venue" data-cf="nav" data-cf-what="a patient’s own home, registered as a venue" data-cf-why="A patient’s own home can be a venue for a single-patient domiciliary visit.">
+                <div class="vh"><span class="vn">Mr I. Muniz — own home</span><span class="vtype">H · Home</span></div>
+                <div class="va">9 New Street, Worcester · WN7 4QQ</div>
+                <div class="vf"><span class="chip">1 patient</span><span class="chip">PVN draft</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><span class="pt">Pre-Visit Notifications</span><span class="pc">12</span>
+              <button class="add" data-cf="pop" data-cf-what="the New PVN form (blank) — contractor details pre-filled from branch setup" data-cf-why="Creating from here gives a blank PVN; from a patient record it pre-fills the patient and their assigned venue.">＋ New PVN</button></div>
+            <div class="panel-bd" style="padding:0"><table>
+              <thead><tr><th>PVN ref</th><th>Venue</th><th>Visit</th><th>Px</th><th>Status</th></tr></thead>
+              <tbody id="pvnRows"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================= SIGNING DEVICE ============================================================= -->
+<section class="view view-sign" id="view-sign">
+  <div class="caption">
+    <b>egos.app — the paired signing device (tablet).</b> The PMS pushes a signing session here in real time; the signature flows straight back to the claim.
+    Tap the dashed/blue <span class="conn" data-cf="nav" data-cf-what="the eGOS claim in the SmartOptics PMS that requested this signature" data-cf-why="The pending list is populated by claims that hit ‘Request signature’ in the eGOS module; once signed, the signature returns to that claim and ticks its readiness step.">connectors</span> to see where things lead.
+  </div>
+  <div class="device">
+    <div class="cam"></div>
+    <div class="screen">
+      <div class="appbar">
+        <div class="mk">S</div>
+        <div class="nm">egos.app<small>SmartOptics signature capture</small></div>
+        <div class="prac" data-cf="nav" data-cf-what="the branch this device is paired to (Setup → Integrations)" data-cf-why="The device is paired once and authenticated by account/branch — no re-typing licence-no + postcode every session like the legacy webpage.">Malvern Eyecare<br>Licence 12345678</div>
+        <button class="out" data-cf="pop" data-cf-what="log out / swipe to hand the tablet back" data-cf-why="After the patient signs, staff swipe to log out before handing the tablet on — sessions are per signatory.">Log out</button>
+        <div class="toast" data-cf="diff" data-cf-what="the real-time push that detected a pending signature" data-cf-why="DIFFERENTIATOR: the legacy product makes you press ‘Refresh List’ to poll. SmartOptics pushes the signing session to the device instantly when staff click ‘Request signature’.">
+          <span class="d"></span>Pending document — pushed from the PMS</div>
+      </div>
+      <div class="rtabs">
+        <div class="rtab on" data-role="patient">Patient<small>declaration + sign</small></div>
+        <div class="rtab" data-role="performer">Performer<small>batch sign</small></div>
+        <div class="rtab" data-role="contractor">Contractor<small>batch sign</small></div>
+      </div>
+      <div class="sgrid">
+        <div class="plist">
+          <div class="plist-h"><span class="pt" id="listTitle">Awaiting patient signature</span>
+            <button class="refresh" data-cf="diff" data-cf-what="a manual refresh of the pending list" data-cf-why="DIFFERENTIATOR: kept only as a fallback — in SmartOptics the list updates by real-time push, so you normally never need to tap Refresh (legacy/Optix requires it every time).">⟳ Refresh</button></div>
+          <div class="pitems" id="pitems"></div>
+        </div>
+        <div class="pane" id="pane"></div>
+      </div>
+    </div>
+  </div>
+  <div class="caption" style="font-size:11.5px">
+    Three role tabs mirror the GOS signing model — <b>Patient</b> signs the declaration; <b>Performer</b> (optom, needs a GOC number) and
+    <b>Contractor</b> (NHS-contracted owner) <b>batch-sign</b> a day’s claims in one action. GOS3 signs twice — at order and at collection.
+  </div>
+</section>
+
+<!-- ============ shared: claim detail modal ============ -->
+<div class="cm-mask" id="cmMask">
+  <div class="cm">
+    <div class="cm-hdr">
+      <div class="cm-lic" id="cmLic">G1</div>
+      <div class="cm-ht"><div class="crumb">English eGOS Claims · claim detail</div><div class="ttl" id="cmTitle">—</div><div class="sub" id="cmSub">—</div></div>
+      <button class="x" id="cmClose">×</button>
+    </div>
+    <div class="cm-body" id="cmBody"></div>
+    <div class="cm-foot">
+      <span class="fnote">Every dashed/blue chip is a connector — click it to see where it leads in the production PMS.</span>
+      <button class="abtn" id="cmReq" data-cf="pop" data-cf-what="the signing session pushed to the branch’s paired tablet (egos.app)" data-cf-why="Real-time push to a paired device — no manual ‘refresh list’. Patient/performer/contractor each get the right view; signature returns to the claim instantly.">Request signature</button>
+      <button class="go" id="cmSubmit" data-cf="nav" data-cf-what="the NHS Gateway (PCSE) — the claim XML is submitted, secured with the practice PSK" data-cf-why="Submission is asynchronous; accept/reject/paid responses drive the status. Assumed available once signed up for eGOS.">Submit to NHS ↗</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ shared: cf popup ============ -->
+<div class="cf-mask" id="cfMask">
+  <div class="cf-box" id="cfBox">
+    <span class="cf-tag" id="cfTag">Prototype review affordance · not production behaviour</span>
+    <div class="cf-h" id="cfH"></div><div class="cf-p" id="cfP"></div><div class="cf-meta" id="cfM"></div>
+    <button class="cf-x" onclick="document.getElementById('cfMask').classList.remove('on')">Got it</button>
+  </div>
+</div>
+
+<script>
+/* ===================== view switcher ===================== */
+function showView(v){
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active', s.id==='view-'+v));
+  document.querySelectorAll('.sbtn').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.sbtn').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+
+/* ===================== CLAIMS ===================== */
+const CLAIMS=[
+  {ref:"64994",name:"Ignacio Muniz",form:"GOS1",lic:"G1",ready:[1,1,1,0,0],status:["s-prog","Data entry in progress"],claim:"£23.53",paid:"—",src:"diary",perf:"Mr A. Singh",contr:"pending",elig:"Aged 60+ (auto)",voucher:"NHS sight test"},
+  {ref:"64981",name:"Maria Okafor",form:"GOS3",lic:"G3",ready:[1,1,1,1,0],status:["s-ready","Ready to claim"],claim:"£69.48",paid:"—",src:"till",perf:"Ms R. Patel",contr:"pending",elig:"HC2 (cert 1234567)",voucher:"Band 2 · +tint"},
+  {ref:"64977",name:"David Klein",form:"GOS4",lic:"G4",ready:[1,1,1,1,1],status:["s-sub","Submitted"],claim:"£19.20",paid:"—",src:"till",perf:"—",contr:"signed",elig:"Approval code AB12",voucher:"Repair · 1 lens"},
+  {ref:"64960",name:"Aaliyah Khan",form:"GOS6",lic:"G6",ready:[1,1,1,1,1],status:["s-acc","Accepted"],claim:"£23.53",paid:"£23.53",src:"pvn",perf:"Mr A. Singh",contr:"signed",elig:"Domiciliary · Nursing home",voucher:"Home visit"},
+  {ref:"64921",name:"Tom Bradley",form:"GOS3",lic:"G3",ready:[1,0,1,0,0],status:["s-rej","Rejected"],claim:"£69.48",paid:"—",src:"till",perf:"Ms R. Patel",contr:"pending",elig:"⚠ Last-exam date invalid",voucher:"Band 2"},
+];
+const RLAB=["Patient signed","Used in till","Performer recorded","Performer signed","Contractor signed"];
+const RVIA=["sign","till","exam","sign","sign"];
+const SRC={diary:"Diary",till:"Till",pvn:"PVN"};
+const STEP_CF={
+  sign:{w:"the signing session on the paired tablet (egos.app)",y:"Pushed in real time to a paired device; the signature returns to the claim instantly. No re-typing, no manual refresh."},
+  till:{w:"the linked Till / Dispensing transaction",y:"Ringing the NHS item through the till against the EGOS payment type ticks this step; for GOS3/4 the voucher value is calculated live from the dispense."},
+  exam:{w:"the saved eye exam in the clinical record",y:"Saving the eye exam attaches the performer name and retest code to the claim automatically."}
+};
+const SRC_CF={
+  diary:{w:"the Appointments / Diary entry for this patient",y:"A GOS1 can be started by right-clicking the appointment; the end-of-day check compares accepted claims against booked appointments."},
+  till:{w:"the Till / Dispensing transaction this voucher is linked to",y:"Voucher value flows from the dispense; the EGOS payment type links the claim to the financial side and ticks ‘Used in till’."},
+  pvn:{w:"the Pre-Visit Notification this GOS6 is claimed against",y:"Domiciliary only — the PVN must be Accepted by PCSE before the GOS6 can be claimed."}
+};
+function rowReady(arr){const n=arr.reduce((a,b)=>a+b,0);
+  return `<div class="ready">${arr.map(x=>`<i class="${x?'ok':''}">${x?'✓':''}</i>`).join('')}<span class="frac">${n}/5</span></div>`;}
+function renderRows(){
+  document.getElementById('rows').innerHTML=CLAIMS.map((c,i)=>`
+    <tr data-i="${i}">
+      <td class="ref">${c.ref}</td>
+      <td><span class="conn in" data-cf="nav" data-cf-what="the Patient Record (Patient module) with ${c.name} loaded" data-cf-why="Pre-fills demographics, GP and the NHS-entitlement section into claims; new GOS1/PVN are also started here.">${c.name}</span></td>
+      <td><span class="ftype">${c.form}</span></td>
+      <td>${rowReady(c.ready)}</td>
+      <td><span class="pill ${c.status[0]}"><span class="pd"></span>${c.status[1]}</span></td>
+      <td class="mono">${c.claim}</td>
+      <td><span class="conn in" data-cf="nav" data-cf-what="${SRC_CF[c.src].w}" data-cf-why="${SRC_CF[c.src].y}">${SRC[c.src]}</span></td>
+    </tr>`).join('');
+  document.querySelectorAll('#rows tr').forEach(tr=>tr.addEventListener('click',e=>{if(e.target.closest('[data-cf]'))return;openClaim(+tr.dataset.i);}));
+}
+function openClaim(i){
+  const c=CLAIMS[i];
+  document.getElementById('cmLic').textContent=c.lic;
+  document.getElementById('cmTitle').innerHTML=`${c.name} <span class="pill ${c.status[0]}"><span class="pd"></span>${c.status[1]}</span>`;
+  document.getElementById('cmSub').textContent=`${c.form} · Px ${c.ref} · ${c.voucher}`;
+  const tasks=c.ready.map((ok,k)=>{const cf=STEP_CF[RVIA[k]];
+    return `<div class="task"><span class="bx ${ok?'ok':'no'}">${ok?'✓':'!'}</span><span class="lbl">${RLAB[k]}</span>
+      <span class="conn ${ok?'in':''}" data-cf="${ok?'nav':'pop'}" data-cf-what="${cf.w}" data-cf-why="${cf.y}">${({sign:'device',till:'Till',exam:'exam'})[RVIA[k]]}</span></div>`;}).join('');
+  const rej=c.status[0]==='s-rej';
+  document.getElementById('cmBody').innerHTML=`
+    <div class="blk span2"><h4>Submission readiness — auto-submits at 5/5</h4>${tasks}</div>
+    <div class="blk"><h4>Eligibility</h4>
+      <div class="row2"><span class="k">Reason</span><span>${c.elig}</span></div>
+      <div class="row2"><span class="k">Source</span><span class="conn in" data-cf="nav" data-cf-what="the patient’s NHS-entitlement section" data-cf-why="NHS-valid reason list with required fields (HC2 cert, Pension Credit recipient…). Auto-suggested from patient data and carried GOS1→GOS3.">from record ↘</span></div></div>
+    <div class="blk"><h4>Signatures</h4>
+      <div class="row2"><span class="k">Patient</span><span class="conn" data-cf="pop" data-cf-what="the signing device (egos.app), Patient tab" data-cf-why="Real-time push to the paired tablet; patient reads the declaration and signs. GOS3 signs twice — order (1 of 2) and collection (2 of 2).">request on device</span></div>
+      <div class="row2"><span class="k">Performer</span><span>${c.perf}</span></div>
+      <div class="row2"><span class="k">Contractor</span><span>${c.contr}</span></div></div>
+    <div class="blk"><h4>Money</h4>
+      <div class="row2"><span class="k">Claimed</span><b>${c.claim}</b></div>
+      <div class="row2"><span class="k">Voucher value</span><span class="conn in" data-cf="pop" data-cf-what="the live voucher-value calculation in the dispense" data-cf-why="As products/supplements are added the module picks the correct voucher type and highest legitimate value — with an ‘explain this value’ breakdown.">live from dispense</span></div>
+      <div class="row2"><span class="k">Paid</span><span class="conn in" data-cf="nav" data-cf-what="BI / Reporting — PCSE statement import & auto-reconciliation" data-cf-why="The monthly PCSE statement is matched automatically: sets Paid, fills paid amount/date, flags under/over-payments.">${c.paid==='—'?'from PCSE statement':c.paid}</span></div></div>
+    <div class="blk span2"><h4>Submission</h4>
+      <div class="row2"><span class="k">NHS / PCSE</span><span class="conn" data-cf="nav" data-cf-what="the NHS Gateway (PCSE) submission + live status lifecycle" data-cf-why="Outbound XML secured with the practice PSK; asynchronous accept/reject/paid responses drive the status.">via NHS Gateway ↗</span></div>
+      ${rej?`<div class="row2"><span class="k">Rejection reason</span><span class="conn" data-cf="pop" data-cf-what="the PCSE rejection reason (status history) + correct-&-resubmit" data-cf-why="A rejection raises a branch task. Edit only fields not already signed for (e.g. last-exam date, retest code), then resubmit in one click.">view reason & fix</span></div>`:''}</div>`;
+  document.getElementById('cmReq').style.display=rej?'none':'';
+  document.getElementById('cmSubmit').textContent=rej?'Correct & resubmit ↗':'Submit to NHS ↗';
+  document.getElementById('cmMask').classList.add('on');
+}
+document.getElementById('cmClose').addEventListener('click',()=>document.getElementById('cmMask').classList.remove('on'));
+document.getElementById('cmMask').addEventListener('click',e=>{if(e.target.id==='cmMask')e.currentTarget.classList.remove('on')});
+
+/* ===================== DOMICILIARY ===================== */
+const PVNS=[
+  {ref:"P-AA52705",venue:"Oakwood Nursing Home",date:"01/07/2026 10:00",px:"3",status:["s-acc","Accepted"]},
+  {ref:"P-AA52703",venue:"Oakwood Nursing Home",date:"01/07/2026 10:00",px:"—",status:["s-acc","Accepted"]},
+  {ref:"P-AA52698",venue:"Lime Court Care Home",date:"03/07/2026 14:30",px:"2",status:["s-acc","Accepted"]},
+  {ref:"P-20052021",venue:"Lime Court Care Home",date:"03/07/2026 14:30",px:"1",status:["s-sub","Submitted"]},
+  {ref:"P-AA52691",venue:"Oakwood Nursing Home",date:"28/06/2026 11:00",px:"1",status:["s-rej","Rejected"]},
+  {ref:"(draft)",venue:"Mr I. Muniz — own home",date:"05/07/2026 09:30",px:"1",status:["s-draft","Draft"]},
+];
+document.getElementById('pvnRows').innerHTML=PVNS.map(p=>`
+  <tr data-cf="pop" data-cf-what="the PVN ${p.ref} detail — venue, visit date/time, patient(s), status history, and ‘attach to GOS6’"
+      data-cf-why="Opens the PVN. If Accepted, it can be attached to a GOS6; a date/time change means raising a NEW PVN rather than editing.">
+    <td><span class="mono">${p.ref}</span></td>
+    <td><span class="conn in" data-cf="nav" data-cf-what="the venue record for ${p.venue}" data-cf-why="Opens the venue and its linked residents.">${p.venue}</span></td>
+    <td class="mono">${p.date}</td><td>${p.px}</td>
+    <td><span class="pill ${p.status[0]}"><span class="pd"></span>${p.status[1]}</span></td>
+  </tr>`).join('');
+
+/* ===================== SIGNING DEVICE ===================== */
+const DATA={
+  patient:{title:"Awaiting patient signature",items:[
+    {nm:"Ignacio Muniz",mt:"GOS1 · NHS sight test",form:"GOS1"},
+    {nm:"Maria Okafor",mt:"GOS3 · order (1 of 2)",form:"GOS3"},
+    {nm:"Aaliyah Khan",mt:"GOS6 · nursing home",form:"GOS6"}]},
+  performer:{title:"Performer batch — to sign",items:[
+    {nm:"Ignacio Muniz",mt:"GOS1 · exam saved",form:"GOS1"},
+    {nm:"Maria Okafor",mt:"GOS3 · Band 2",form:"GOS3"},
+    {nm:"Tom Bradley",mt:"GOS3 · Band 2",form:"GOS3"}]},
+  contractor:{title:"Contractor batch — to sign",items:[
+    {nm:"Ignacio Muniz",mt:"GOS1 · NHS sight test",form:"GOS1"},
+    {nm:"Maria Okafor",mt:"GOS3 · Band 2",form:"GOS3"},
+    {nm:"Aaliyah Khan",mt:"GOS6 · domiciliary",form:"GOS6"}]},
+};
+let role='patient', sel=0, checked={performer:new Set(),contractor:new Set()};
+function renderList(){
+  const d=DATA[role]; document.getElementById('listTitle').textContent=d.title;
+  const batch=role!=='patient';
+  document.getElementById('pitems').innerHTML=d.items.map((it,i)=>{
+    const on=batch?(checked[role].has(i)?'on':''):(i===sel?'on':'');
+    const right=batch?`<span class="ck ${checked[role].has(i)?'on':''}">${checked[role].has(i)?'✓':''}</span>`:`<span class="ftag">${it.form}</span>`;
+    return `<div class="pitem ${on}" data-i="${i}"><span class="av">${it.nm.split(' ').map(w=>w[0]).join('')}</span>
+      <div><div class="nm">${it.nm}</div><div class="mt">${it.mt}</div></div>${right}</div>`;}).join('');
+  document.querySelectorAll('#pitems .pitem').forEach(el=>el.addEventListener('click',()=>{
+    const i=+el.dataset.i;
+    if(role==='patient'){sel=i;}else{checked[role].has(i)?checked[role].delete(i):checked[role].add(i);}
+    renderList(); renderPane();
+  }));
+}
+function renderPane(){
+  const d=DATA[role];
+  if(role==='patient'){
+    const it=d.items[sel];
+    document.getElementById('pane').innerHTML=`
+      <div class="crumb">${it.form} · patient declaration</div><div class="who">${it.nm}</div>
+      <div class="decl"><h5>Please check & confirm</h5>
+        <div class="dl"><span class="tick">✓</span><span>I am entitled to NHS-funded care for the reason shown: <b>${it.form==='GOS6'?'Domiciliary — unable to attend':'Aged 60 or over'}</b>.</span></div>
+        <div class="dl"><span class="tick">✓</span><span>The details on this form are correct to the best of my knowledge.</span></div>
+        ${it.form==='GOS3'?'<div class="dl"><span class="tick">✓</span><span>This signature is at the <b>order</b> stage (1 of 2). A second is taken at collection.</span></div>':''}
+        <div class="small">Declaration content & eligibility reasons are supplied by the NHS and shown for the patient to read before signing.</div></div>
+      <div class="padwrap"><div class="padlab">✍ Sign in the box below <span style="font-size:10px;color:var(--faint);font-weight:700">— returns to the claim instantly on submit</span></div>
+        <div class="pad" data-cf="nav" data-cf-what="the captured signature being written back to the eGOS claim in the PMS" data-cf-why="On submit the signature image + metadata (who/when/device/declaration version) return to the claim and tick its ‘Patient signed’ step.">
+          <span class="hint">Tap & sign here</span><div class="line"></div><span class="xmark">✕</span></div>
+        <div class="pactions">
+          <button class="clear" data-cf="pop" data-cf-what="clear the signature pad to re-sign" data-cf-why="Clears the current stroke so the patient can try again before submitting.">Clear</button>
+          <button class="submit" data-cf="nav" data-cf-what="submit — the signature returns to the claim and the device is ready for the next patient" data-cf-why="Submitting sends the signature back to the PMS; the patient hands the tablet back and staff swipe to log out.">✓ Submit signature</button></div></div>`;
+  } else {
+    const n=checked[role].size;
+    document.getElementById('pane').innerHTML=`
+      <div class="crumb">${role==='performer'?'Performer (optometrist)':'Contractor (NHS-contracted owner)'} batch signing</div>
+      <div class="who">${role==='performer'?'Ms R. Patel':'Mr A. Singh'} <span style="font-size:11px;color:var(--muted);font-weight:700">${role==='performer'?'· GOC 01-234567':'· signs for Malvern + Worcester'}</span></div>
+      <div class="decl"><h5>Batch declaration</h5>
+        <div class="dl"><span class="tick">✓</span><span>I confirm I ${role==='performer'?'carried out the sight tests':'am the contractor for these claims'} selected (left).</span></div>
+        <div class="dl"><span class="tick">✓</span><span>One signature applies to <b>${n||'0'}</b> selected ${n===1?'claim':'claims'} in this batch.</span></div>
+        <div class="small">Tick claims on the left to add them to the batch. Pre-reg students’ exams route to their supervising performer to sign.</div></div>
+      <div class="batchbar"><span class="t">${n||'No'} claim${n===1?'':'s'} selected for batch signing</span>
+        <button class="gob" data-cf="nav" data-cf-what="process the batch — apply this signature to all selected claims at once" data-cf-why="DIFFERENTIATOR vs FLEX: one signature clears a whole day’s claims. Each signed claim advances toward auto-submission.">Process batch ▸</button></div>
+      <div class="padwrap"><div class="padlab">✍ Sign once for the batch</div>
+        <div class="pad" data-cf="nav" data-cf-what="the batch signature written back to every selected claim in the PMS" data-cf-why="The single signature is applied to all selected claims; each ticks its ‘${role==='performer'?'Performer':'Contractor'} signed’ step and auto-submits when its checklist completes.">
+          <span class="hint">Tap & sign here</span><div class="line"></div><span class="xmark">✕</span></div></div>`;
+  }
+}
+document.querySelectorAll('.rtab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.rtab').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on'); role=t.dataset.role; sel=0; renderList(); renderPane();
+}));
+
+/* ===================== shared cf popup (+ cross-view jump) ===================== */
+(function(){
+  function open(el){
+    var type=el.getAttribute('data-cf'); var what=el.getAttribute('data-cf-what')||''; var why=el.getAttribute('data-cf-why')||'';
+    var box=document.getElementById('cfBox'); box.className='cf-box'+(type==='nav'?' nav':type==='diff'?' diff':'');
+    document.getElementById('cfTag').textContent=type==='diff'?'SmartOptics differentiator · review affordance':'Prototype review affordance · not production behaviour';
+    document.getElementById('cfH').textContent=type==='nav'?'You will be directed to a detailed view':type==='diff'?'Where this leads — and why it’s a differentiator':'Here’s a pop-up with more information';
+    document.getElementById('cfP').textContent=(type==='nav'?'In production this navigates to: ':type==='diff'?'In production this is: ':'In production this opens an in-place pop-up for: ')+what+'.';
+    document.getElementById('cfM').textContent=why;
+    document.getElementById('cfMask').classList.add('on');
+  }
+  document.addEventListener('click',function(e){
+    var jump=e.target.closest('[data-jump]');
+    if(jump){e.preventDefault();e.stopPropagation();showView(jump.getAttribute('data-view'));return;}
+    var el=e.target.closest('[data-cf]');
+    if(el){e.preventDefault();e.stopPropagation();open(el);}
+  },true);
+  document.getElementById('cfMask').addEventListener('click',function(e){if(e.target===this)this.classList.remove('on');});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){document.getElementById('cfMask').classList.remove('on');document.getElementById('cmMask').classList.remove('on');}});
+})();
+
+renderRows(); renderList(); renderPane();
+</script>
+</body>
+</html>
