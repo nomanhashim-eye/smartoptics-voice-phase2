@@ -22,6 +22,45 @@ eGOS lets a practice run the entire NHS GOS claim process inside SmartOptics —
 | GOS6    | Domiciliary (home / care-home) sight test                 | An **accepted PVN** |
 | PVN     | Pre-Visit Notification (precedes a GOS6)                  | A **venue** + visit date/time |
 
+### 1.1 Feature comparison matrix (SmartOptics vs Optix vs FLEX)
+
+Legend: ✅ full · 🟡 partial / manual · ❌ none · 🎙️ unique to us. The **SmartOptics** column is the target state defined by this spec.
+
+| Capability | SmartOptics (planned) | Optix | FLEX / Nova |
+|---|:---:|:---:|:---:|
+| **Form coverage** | | | |
+| GOS1 — sight test | ✅ | ✅ | ✅ |
+| GOS3 — voucher, dispense-integrated, real-time value calc | ✅ | ✅ | 🟡 (auto-populate, not live calc) |
+| GOS3 takeaway / voucher-only tracking & retrieval | ✅ | 🟡 | 🟡 |
+| GOS4 — repair / replacement | ✅ | ✅ | ✅ |
+| GOS5 — complex / supplementary | ✅ | ❌ | ✅ |
+| GOS6 — domiciliary | ✅ | ❌ | ✅ |
+| PVN + venues + care-home batch visits | ✅ | ❌ | 🟡 (PVN/venues, no batch) |
+| **Workflow** | | | |
+| Checklist → auto-submit (no "press submit") | ✅ | ✅ | ❌ |
+| Performer / Contractor roles, GOC validation, pre-reg sign-off | ✅ | ✅ | 🟡 |
+| Two-stage GOS3 signature (order + collection) | ✅ | ✅ | 🟡 |
+| Eligibility intelligence / pre-submission validation | ✅ | 🟡 | ❌ |
+| Rejection → task, edit non-signed fields, resubmit | ✅ | ✅ | 🟡 |
+| **Signatures** | | | |
+| Cloud tablet e-signature, no host app open | ✅ | ✅ | 🟡 (needs FLEX open / dial-in) |
+| Real-time push to device (no manual "refresh list") | ✅ | 🟡 | ❌ |
+| Batch signing (performer/contractor) | ✅ | ✅ | ❌ |
+| **Submission & money** | | | |
+| NHS/PCSE submission + live status lifecycle | ✅ | 🟡 (opaque) | ✅ |
+| Statement import (CSV) | ✅ | 🟡 | ✅ |
+| **Auto** payment reconciliation / matching | ✅ | ❌ (manual "move to Paid") | ❌ |
+| Under/overpaid detection | ✅ | ❌ | ✅ |
+| 3-month deadline ageing + write-off workflow | ✅ | ❌ | 🟡 (manual search) |
+| **Insight** | | | |
+| Dedicated eGOS dashboard / worklists | ✅ | 🟡 | 🟡 (widget) |
+| eGOS revenue forecasting / pipeline | ✅ | ❌ | ❌ |
+| Compliance-grade audit trail + export | ✅ | ❌ | 🟡 (printouts) |
+| Estate-wide / multi-branch claim view | ✅ | ✅ | ❌ |
+| **Platform** | | | |
+| 100% cloud | ✅ | ✅ | ❌ (desktop) |
+| **Voice-first claim capture** | 🎙️ | ❌ | ❌ |
+
 ---
 
 ## 2. Where eGOS lives in the PMS
