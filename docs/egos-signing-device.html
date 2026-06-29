@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartOptics — egos.app Signing Device Mock-up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f3f6f5; --surface:#ffffff; --surface-2:#f7faf9;
+    --border:#e2e8e6; --border-soft:#eef2f0;
+    --ink:#0e1e1c; --ink-2:#2a3d3a; --muted:#6b7d79; --faint:#9aaaa6;
+    --mint:#4fb591; --mint-deep:#2d8e6b; --mint-soft:#dff2ea; --mint-tint:#f0faf6;
+    --coral:#f47565; --coral-deep:#e85a48; --coral-soft:#fde2dd;
+    --sun:#f5b754; --sun-soft:#fdebcc; --sun-tint:#fcf2dc;
+    --indigo:#6b6cd9; --indigo-soft:#e2e3f7;
+    --sky:#3f8fd1; --sky-soft:#dcecf9;
+    --shadow:0 4px 14px -6px rgba(14,30,28,0.06), 0 1px 3px rgba(14,30,28,0.04);
+    --shadow-lg:0 12px 32px -10px rgba(14,30,28,0.10);
+    --r:14px; --r-lg:20px; --r-pill:999px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Plus Jakarta Sans',-apple-system,sans-serif;
+    background:radial-gradient(circle at 50% 0%,#e7efec,#dde6e3);color:var(--ink);font-size:14px;
+    -webkit-font-smoothing:antialiased;min-height:100vh;padding:26px 16px;
+    display:flex;flex-direction:column;align-items:center;gap:16px}
+  .mono{font-family:'DM Mono',monospace}
+
+  .caption{max-width:780px;text-align:center;color:var(--muted);font-size:12.5px;font-weight:600;line-height:1.5}
+  .caption b{color:var(--ink-2)}
+  .caption .conn{color:var(--sky);font-weight:800;cursor:pointer;border-bottom:1px dashed var(--sky)}
+
+  /* tablet device frame */
+  .device{width:880px;max-width:96vw;background:#0e1e1c;border-radius:34px;padding:14px;
+    box-shadow:0 40px 90px -30px rgba(14,30,28,.55),0 0 0 2px rgba(255,255,255,.04) inset;position:relative}
+  .device::before{content:"";position:absolute;top:50%;left:7px;transform:translateY(-50%);width:5px;height:46px;border-radius:9px;background:#1d2e2b}
+  .cam{position:absolute;top:24px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:#33524c}
+  .screen{background:var(--bg);border-radius:22px;overflow:hidden;display:flex;flex-direction:column;height:560px}
+
+  /* app top bar */
+  .abar{height:54px;background:linear-gradient(135deg,var(--mint),var(--mint-deep));display:flex;align-items:center;gap:12px;padding:0 18px;color:#fff}
+  .abar .mk{width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:800}
+  .abar .nm{font-weight:800;font-size:14px;letter-spacing:-.01em}
+  .abar .nm small{display:block;font-size:9px;font-weight:600;opacity:.8;letter-spacing:.02em}
+  .abar .prac{margin-left:auto;text-align:right;font-size:10.5px;font-weight:700;opacity:.95;line-height:1.3}
+  .abar .out{margin-left:14px;height:30px;padding:0 13px;border-radius:var(--r-pill);border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:11px;font-weight:800;cursor:pointer}
+
+  /* role tabs */
+  .rtabs{display:flex;gap:0;background:var(--surface);border-bottom:1px solid var(--border)}
+  .rtab{flex:1;text-align:center;padding:13px 0;font-weight:800;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent}
+  .rtab.on{color:var(--mint-deep);border-bottom-color:var(--mint-deep);background:var(--mint-tint)}
+  .rtab small{display:block;font-size:9px;font-weight:700;color:var(--faint);margin-top:2px}
+  .rtab.on small{color:var(--mint-deep)}
+
+  .body{flex:1;display:flex;min-height:0}
+  /* pending list */
+  .plist{width:300px;border-right:1px solid var(--border);background:var(--surface-2);display:flex;flex-direction:column}
+  .plist-h{padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border-soft)}
+  .plist-h .pt{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+  .refresh{margin-left:auto;height:28px;padding:0 11px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);
+    font-family:inherit;font-size:10.5px;font-weight:800;color:var(--ink-2);cursor:pointer;display:flex;align-items:center;gap:6px}
+  .refresh:hover{border-color:var(--mint);color:var(--mint-deep)}
+  .pitems{overflow:auto;padding:8px}
+  .pitem{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:var(--r);cursor:pointer;border:1px solid transparent}
+  .pitem:hover{background:var(--surface);border-color:var(--border)}
+  .pitem.on{background:var(--surface);border-color:var(--mint);box-shadow:var(--shadow)}
+  .pitem .av{width:34px;height:34px;border-radius:10px;background:var(--indigo-soft);color:#41429c;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+  .pitem .nm{font-size:12.5px;font-weight:800}
+  .pitem .mt{font-size:10px;color:var(--muted);font-weight:600}
+  .ftag{font-size:8.5px;font-weight:800;padding:1px 6px;border-radius:var(--r-pill);background:var(--bg);color:var(--ink-2);margin-left:auto}
+  .ck{margin-left:auto;width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#fff}
+  .ck.on{background:var(--mint-deep);border-color:var(--mint-deep)}
+
+  /* sign pane */
+  .pane{flex:1;display:flex;flex-direction:column;padding:16px 20px;overflow:auto}
+  .crumb{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .who{font-size:18px;font-weight:800;letter-spacing:-.01em;margin-top:2px}
+  .decl{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 15px;margin-top:12px;box-shadow:var(--shadow)}
+  .decl h5{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:8px}
+  .dl{display:flex;align-items:flex-start;gap:9px;font-size:12px;font-weight:600;color:var(--ink-2);padding:5px 0}
+  .dl .tick{color:var(--mint-deep);font-weight:900;flex-shrink:0}
+  .decl .small{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:8px;line-height:1.45;border-top:1px solid var(--border-soft);padding-top:8px;font-style:italic}
+
+  .padwrap{margin-top:14px;flex:1;display:flex;flex-direction:column}
+  .padlab{font-size:11px;font-weight:800;color:var(--ink-2);margin-bottom:7px;display:flex;align-items:center;gap:8px}
+  .pad{flex:1;min-height:120px;background:#fff;border:2px dashed var(--mint);border-radius:var(--r);position:relative;overflow:hidden;cursor:crosshair}
+  .pad .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:12px;font-weight:700}
+  .pad svg{position:absolute;left:18%;top:30%;width:55%;color:var(--ink);opacity:.85}
+  .pad .line{position:absolute;left:8%;right:8%;bottom:22%;border-bottom:1.5px solid var(--border)}
+  .pad .xmark{position:absolute;left:8%;bottom:24%;color:var(--faint);font-weight:800}
+
+  .pactions{display:flex;gap:10px;margin-top:12px}
+  .clear{height:44px;padding:0 18px;border-radius:var(--r-pill);border:1px solid var(--border);background:var(--surface);font-family:inherit;font-size:13px;font-weight:800;color:var(--muted);cursor:pointer}
+  .submit{flex:1;height:44px;border-radius:var(--r-pill);border:1px solid var(--mint-deep);background:var(--mint-deep);color:#fff;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 8px 20px -8px rgba(45,142,107,.6)}
+  .submit:hover{background:#247a5b}
+
+  /* batch process bar (performer/contractor) */
+  .batchbar{display:none;align-items:center;gap:12px;background:var(--sun-tint);border:1px solid var(--sun);border-radius:var(--r);padding:11px 15px;margin-top:12px}
+  .batchbar.on{display:flex}
+  .batchbar .t{font-size:12px;font-weight:800;color:#8a5424}
+  .batchbar .go{margin-left:auto;height:38px;padding:0 16px;border-radius:var(--r-pill);border:1px solid #8a5424;background:#8a5424;color:#fff;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}
+
+  /* toast */
+  .toast{position:absolute;left:50%;top:70px;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:var(--r-pill);
+    padding:9px 16px;font-size:11.5px;font-weight:700;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:9px;z-index:5;animation:drop .3s ease-out}
+  @keyframes drop{from{transform:translate(-50%,-10px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+  .toast .d{width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 0 rgba(79,181,145,.6);animation:pp 1.6s infinite}
+  @keyframes pp{0%{box-shadow:0 0 0 0 rgba(79,181,145,.55)}70%{box-shadow:0 0 0 7px rgba(79,181,145,0)}100%{box-shadow:0 0 0 0 rgba(79,181,145,0)}}
+
+  /* CF popup */
+  .cf-mask{position:fixed;inset:0;background:rgba(14,30,28,.4);display:none;align-items:center;justify-content:center;z-index:95}
+  .cf-mask.on{display:flex}
+  .cf-box{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);max-width:460px;padding:24px 26px;border-top:4px solid var(--mint)}
+  .cf-box.nav{border-top-color:var(--ink)}.cf-box.diff{border-top-color:var(--sun)}
+  .cf-tag{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8a5424;background:#fcf2dc;border:1px dashed var(--sun);padding:3px 9px;border-radius:var(--r-pill);display:inline-block;margin-bottom:12px}
+  .cf-h{font-size:16px;font-weight:800;margin-bottom:8px}
+  .cf-p{font-size:12.5px;color:var(--ink-2);font-weight:600;line-height:1.5;margin-bottom:8px}
+  .cf-meta{font-size:11px;color:var(--faint);font-weight:700;margin-bottom:18px;line-height:1.5}
+  .cf-x{height:36px;padding:0 18px;border-radius:var(--r-pill);border:1px solid var(--ink);background:var(--ink);color:#fff;font-family:inherit;font-size:12px;font-weight:800;cursor:pointer}
+  .cf-x:hover{background:var(--mint-deep);border-color:var(--mint-deep)}
+  [data-cf]{cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="caption">
+    <b>egos.app — the paired signing device (tablet).</b> The PMS pushes a signing session here in real time; the signature
+    flows straight back to the claim. Tap the dashed/blue <span class="conn" data-cf="nav" data-cf-what="the eGOS claim in the SmartOptics PMS that requested this signature" data-cf-why="The pending list is populated by claims that hit ‘Request signature’ in the eGOS module; once signed, the signature returns to that claim and ticks its readiness step.">connectors</span> to see where things lead in the production PMS.
+  </div>
+
+  <div class="device">
+    <div class="cam"></div>
+    <div class="screen">
+
+      <!-- app bar -->
+      <div class="abar">
+        <div class="mk">S</div>
+        <div class="nm">egos.app<small>SmartOptics signature capture</small></div>
+        <div class="prac" data-cf="nav" data-cf-what="the branch this device is paired to (Setup → Integrations)" data-cf-why="The device is paired once and authenticated by account/branch — no re-typing licence-no + postcode every session like the legacy webpage.">Malvern Eyecare<br>Licence 12345678</div>
+        <button class="out" data-cf="pop" data-cf-what="log out / swipe to hand the tablet back" data-cf-why="After the patient signs, staff swipe to log out before handing the tablet on — sessions are per signatory.">Log out</button>
+      </div>
+
+      <div class="toast" data-cf="diff" data-cf-what="the real-time push that detected a pending signature" data-cf-why="DIFFERENTIATOR: the legacy product makes you press ‘Refresh List’ to poll. SmartOptics pushes the signing session to the device instantly when staff click ‘Request signature’ in the claim.">
+        <span class="d"></span>Pending document detected — pushed from the PMS
+      </div>
+
+      <!-- role tabs -->
+      <div class="rtabs">
+        <div class="rtab on" data-role="patient">Patient<small>declaration + sign</small></div>
+        <div class="rtab" data-role="performer">Performer<small>batch sign</small></div>
+        <div class="rtab" data-role="contractor">Contractor<small>batch sign</small></div>
+      </div>
+
+      <div class="body">
+        <!-- pending list -->
+        <div class="plist">
+          <div class="plist-h"><span class="pt" id="listTitle">Awaiting patient signature</span>
+            <button class="refresh" data-cf="diff" data-cf-what="a manual refresh of the pending list" data-cf-why="DIFFERENTIATOR: kept only as a fallback — in SmartOptics the list updates by real-time push, so you normally never need to tap Refresh (the legacy/Optix flow requires it every time).">⟳ Refresh</button>
+          </div>
+          <div class="pitems" id="pitems"></div>
+        </div>
+
+        <!-- sign pane -->
+        <div class="pane" id="pane"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="caption" style="font-size:11.5px">
+    Three role tabs mirror the GOS signing model — <b>Patient</b> signs the declaration; <b>Performer</b> (optom, needs a GOC number) and
+    <b>Contractor</b> (NHS-contracted owner) <b>batch-sign</b> a day’s claims in one action. GOS3 signs twice — at order and at collection.
+  </div>
+
+  <!-- CF popup -->
+  <div class="cf-mask" id="cfMask">
+    <div class="cf-box" id="cfBox">
+      <span class="cf-tag" id="cfTag">Prototype review affordance · not production behaviour</span>
+      <div class="cf-h" id="cfH"></div>
+      <div class="cf-p" id="cfP"></div>
+      <div class="cf-meta" id="cfM"></div>
+      <button class="cf-x" onclick="document.getElementById('cfMask').classList.remove('on')">Got it</button>
+    </div>
+  </div>
+
+<script>
+const DATA={
+  patient:{title:"Awaiting patient signature",
+    items:[
+      {nm:"Ignacio Muniz",mt:"GOS1 · NHS sight test",form:"GOS1"},
+      {nm:"Maria Okafor",mt:"GOS3 · order (1 of 2)",form:"GOS3"},
+      {nm:"Aaliyah Khan",mt:"GOS6 · nursing home",form:"GOS6"},
+    ]},
+  performer:{title:"Performer batch — to sign",
+    items:[
+      {nm:"Ignacio Muniz",mt:"GOS1 · exam saved",form:"GOS1"},
+      {nm:"Maria Okafor",mt:"GOS3 · Band 2",form:"GOS3"},
+      {nm:"Tom Bradley",mt:"GOS3 · Band 2",form:"GOS3"},
+    ]},
+  contractor:{title:"Contractor batch — to sign",
+    items:[
+      {nm:"Ignacio Muniz",mt:"GOS1 · NHS sight test",form:"GOS1"},
+      {nm:"Maria Okafor",mt:"GOS3 · Band 2",form:"GOS3"},
+      {nm:"Aaliyah Khan",mt:"GOS6 · domiciliary",form:"GOS6"},
+    ]},
+};
+let role='patient', sel=0, checked={performer:new Set(),contractor:new Set()};
+
+function renderList(){
+  const d=DATA[role];
+  document.getElementById('listTitle').textContent=d.title;
+  const batch = role!=='patient';
+  document.getElementById('pitems').innerHTML=d.items.map((it,i)=>{
+    const on = batch ? (checked[role].has(i)?'on':'') : (i===sel?'on':'');
+    const right = batch
+      ? `<span class="ck ${checked[role].has(i)?'on':''}">${checked[role].has(i)?'✓':''}</span>`
+      : `<span class="ftag">${it.form}</span>`;
+    return `<div class="pitem ${on}" data-i="${i}">
+        <span class="av">${it.nm.split(' ').map(w=>w[0]).join('')}</span>
+        <div><div class="nm">${it.nm}</div><div class="mt">${it.mt}</div></div>${right}
+      </div>`;
+  }).join('');
+  document.querySelectorAll('#pitems .pitem').forEach(el=>el.addEventListener('click',()=>{
+    const i=+el.dataset.i;
+    if(role==='patient'){sel=i;} else {checked[role].has(i)?checked[role].delete(i):checked[role].add(i);}
+    renderList(); renderPane();
+  }));
+}
+
+function renderPane(){
+  const d=DATA[role];
+  if(role==='patient'){
+    const it=d.items[sel];
+    document.getElementById('pane').innerHTML=`
+      <div class="crumb">${it.form} · patient declaration</div>
+      <div class="who">${it.nm}</div>
+      <div class="decl">
+        <h5>Please check &amp; confirm</h5>
+        <div class="dl"><span class="tick">✓</span><span>I am entitled to NHS-funded care for the reason shown: <b>${it.form==='GOS6'?'Domiciliary — unable to attend':'Aged 60 or over'}</b>.</span></div>
+        <div class="dl"><span class="tick">✓</span><span>The details on this form are correct to the best of my knowledge.</span></div>
+        ${it.form==='GOS3'?'<div class="dl"><span class="tick">✓</span><span>This signature is at the <b>order</b> stage (1 of 2). A second signature is taken at collection.</span></div>':''}
+        <div class="small">Declaration content &amp; eligibility reasons are supplied by the NHS and shown for the patient to read before signing.</div>
+      </div>
+      <div class="padwrap">
+        <div class="padlab">✍ Sign in the box below
+          <span class="conn-i" style="font-size:10px;color:var(--faint);font-weight:700">— returns to the claim instantly on submit</span></div>
+        <div class="pad" data-cf="nav" data-cf-what="the captured signature being written back to the eGOS claim in the PMS" data-cf-why="On submit the signature image + metadata (who/when/device/declaration version) return to the claim and tick its ‘Patient signed’ step — no manual refresh in the PMS.">
+          <span class="hint">Tap &amp; sign here</span>
+          <div class="line"></div><span class="xmark">✕</span>
+        </div>
+        <div class="pactions">
+          <button class="clear" data-cf="pop" data-cf-what="clear the signature pad to re-sign" data-cf-why="Clears the current stroke so the patient can try again before submitting.">Clear</button>
+          <button class="submit" data-cf="nav" data-cf-what="submit — the signature returns to the claim and the device is ready for the next patient" data-cf-why="Submitting sends the signature back to the PMS; the patient hands the tablet back and staff swipe to log out.">✓ Submit signature</button>
+        </div>
+      </div>`;
+  } else {
+    const n=checked[role].size;
+    document.getElementById('pane').innerHTML=`
+      <div class="crumb">${role==='performer'?'Performer (optometrist)':'Contractor (NHS-contracted owner)'} batch signing</div>
+      <div class="who">${role==='performer'?'Ms R. Patel':'Mr A. Singh'} <span style="font-size:11px;color:var(--muted);font-weight:700">${role==='performer'?'· GOC 01-234567':'· signs for Malvern + Worcester'}</span></div>
+      <div class="decl">
+        <h5>Batch declaration</h5>
+        <div class="dl"><span class="tick">✓</span><span>I confirm I ${role==='performer'?'carried out the sight tests':'am the contractor for these claims'} listed and selected (left).</span></div>
+        <div class="dl"><span class="tick">✓</span><span>One signature applies to <b>${n||'0'}</b> selected ${n===1?'claim':'claims'} in this batch.</span></div>
+        <div class="small">Tick claims on the left to add them to the batch. Pre-registration students’ exams route to their supervising performer to sign.</div>
+      </div>
+      <div class="batchbar on">
+        <span class="t">${n||'No'} claim${n===1?'':'s'} selected for batch signing</span>
+        <button class="go" data-cf="nav" data-cf-what="process the batch — apply this signature to all ${n||'selected'} claims at once" data-cf-why="DIFFERENTIATOR vs FLEX: one signature clears a whole day’s claims. Each signed claim advances toward auto-submission in the PMS.">Process batch ▸</button>
+      </div>
+      <div class="padwrap">
+        <div class="padlab">✍ Sign once for the batch</div>
+        <div class="pad" data-cf="nav" data-cf-what="the batch signature written back to every selected claim in the PMS" data-cf-why="The single signature is applied to all selected claims; each ticks its ‘${role==='performer'?'Performer':'Contractor'} signed’ step and auto-submits when its checklist completes.">
+          <span class="hint">Tap &amp; sign here</span><div class="line"></div><span class="xmark">✕</span>
+        </div>
+      </div>`;
+  }
+}
+
+document.querySelectorAll('.rtab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.rtab').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on'); role=t.dataset.role; sel=0; renderList(); renderPane();
+}));
+
+renderList(); renderPane();
+
+(function(){
+  function open(el){
+    var type=el.getAttribute('data-cf'); var what=el.getAttribute('data-cf-what')||''; var why=el.getAttribute('data-cf-why')||'';
+    var box=document.getElementById('cfBox'); box.className='cf-box'+(type==='nav'?' nav':type==='diff'?' diff':'');
+    document.getElementById('cfTag').textContent=type==='diff'?'SmartOptics differentiator · review affordance':'Prototype review affordance · not production behaviour';
+    document.getElementById('cfH').textContent=type==='nav'?'You will be directed to a detailed view':type==='diff'?'Where this leads — and why it’s a differentiator':'Here’s a pop-up with more information';
+    document.getElementById('cfP').textContent=(type==='nav'?'In production this navigates to: ':type==='diff'?'In production this is: ':'In production this opens an in-place pop-up for: ')+what+'.';
+    document.getElementById('cfM').textContent=why;
+    document.getElementById('cfMask').classList.add('on');
+  }
+  document.addEventListener('click',function(e){var el=e.target.closest('[data-cf]');if(el){e.preventDefault();e.stopPropagation();open(el);}},true);
+  document.getElementById('cfMask').addEventListener('click',function(e){if(e.target===this)this.classList.remove('on');});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')document.getElementById('cfMask').classList.remove('on');});
+})();
+</script>
+</body>
+</html>
