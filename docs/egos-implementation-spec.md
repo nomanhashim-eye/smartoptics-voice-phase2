@@ -1,305 +1,229 @@
-# eGOS Module — Implementation Spec for SmartOptics (Cloud PMS)
+# eGOS Module — Specification & How It Works in the SmartOptics PMS
 
 **Status:** Draft for review
-**Audience:** Engineering, product
-**Scope:** How to build an NHS England eGOS (electronic General Ophthalmic Services) claims module inside SmartOptics, a 100% cloud-based PMS.
+**Audience:** Product, engineering, clinical/operations
+**Scope:** What the eGOS (NHS England electronic General Ophthalmic Services) module does and how it works end-to-end inside SmartOptics, a 100% cloud-based PMS.
 
-> This spec is derived from the Optinet FLEX / Nova help articles supplied (the legacy desktop + part-cloud implementation). It re-expresses that behaviour as a cloud-native design and calls out where SmartOptics can do better than the legacy product. It is a **functional + architectural** spec — it does **not** yet include the PCSE wire-level message schemas, which we still need (see §13, Open Questions).
-
----
-
-## 1. Purpose & scope
-
-The eGOS module lets an optical practice create, sign, submit, track, reconcile and report on NHS GOS claims electronically to **PCSE (Primary Care Support England)**, without paper. It must cover the claim types FLEX already supports:
-
-| Form  | Purpose                                                            | Notes |
-|-------|-------------------------------------------------------------------|-------|
-| GOS1  | NHS-funded sight test claim                                       | The high-volume everyday claim |
-| GOS3  | Optical voucher towards spectacles (incl. **takeaway** vouchers)  | Has a "takeaway" / voucher-only (`GOS3_VO`) variant |
-| GOS4  | Repair / replacement of spectacles                               | Paid value can differ from claimed → reconciliation matters |
-| GOS5  | Complex / supplementary                                           | Lower volume |
-| GOS6  | Domiciliary (home / care-home) sight test                        | Requires an **accepted PVN** first |
-| PVN   | Pre-Visit Notification (precursor to GOS6)                        | Specifies venue + date/time of a domiciliary visit |
-
-Out of scope for v1 (candidates for later): Wales/Scotland/NI GOS variants, non-GOS private claims.
+> **Assumption (per direction):** The NHS / PCSE interfaces — claim submission, PVN messaging, signing, status responses and payment statements — are all **available and provisioned** once the practice has signed up for eGOS. This spec therefore treats the NHS link as a working dependency (an "NHS Gateway" the PMS talks to) and concentrates on the **PMS behaviour, workflows and screens**. The NHS interface contract is summarised in §11 as an assumed-available dependency, not an open question.
 
 ---
 
-## 2. Background — how eGOS works (domain primer)
+## 1. What the module is for
 
-- **PCSE** is the NHS body that receives GOS claims for England and pays contractors. eGOS went fully live Feb 2021.
-- A practice is identified to PCSE by an **8-digit practice/site licence number** and an **NHS organisation (contractor) code**.
-- To talk to PCSE, the **software vendor** (us) must hold a **Pre-Shared Key (PSK)** issued per practice. Onboarding a practice means requesting that PSK from PCSE on the practice's behalf (legacy: via a JotForm). Credentials stored per branch: org code, username, password, PSK.
-- Claims are exchanged as **XML messages** over a PCSE endpoint. Submissions are validated server-side by PCSE and move through a status lifecycle (below). Responses are asynchronous.
-- Most GOS forms require **two signatures**: the **patient** (declaration of eligibility) and the **performer/optometrist**.
-- Money is reconciled later: PCSE issues a **statement** (downloadable CSV) showing what was actually paid; the practice imports it monthly to mark claims Paid and to catch under/overpayments.
-- **Time limit:** as of 01/01/2024, claims must be submitted within **3 months**.
+eGOS lets a practice run the entire NHS GOS claim process inside SmartOptics — create, sign, submit, track, reconcile and report — with no paper and no separate NHS portal. It supports the standard England GOS forms:
 
----
-
-## 3. Domain model (entities)
-
-All entities are tenant-scoped (see §10). Suggested core tables/aggregates:
-
-### 3.1 `egos_practice_config` (per branch)
-- `branch_id` (FK)
-- `practice_licence_no` (8-digit)
-- `org_code` (NHS contractor/ODS code)
-- `pcse_username`, `pcse_password` (secret refs, not raw)
-- `psk_secret_ref` (reference into secrets store — never the raw PSK)
-- `auto_populate_voucher_values` (bool)
-- `default_signature_method` enum: `signature_pad | mobile | screen | external`
-- `active` (bool)
-
-### 3.2 `egos_claim`
-- `id`, `branch_id`, `patient_id`, `appointment_id?`, `performer_id`
-- `form_type` enum: `GOS1 | GOS3 | GOS3_VO | GOS4 | GOS5 | GOS6`
-- `status` (see §4 state machine)
-- `claim_ref` (our internal ref) + `pcse_claim_ref` (assigned/echoed by PCSE)
-- `pvn_id?` (FK, required for GOS6)
-- `venue_id?` (FK, for domiciliary)
-- `form_payload` (JSONB — the structured answers to the GOS form; see §3.7)
-- `claimed_amount` (for voucher/repair forms)
-- `paid_amount?`, `paid_date?`, `payment_statement_id?`
-- `eligibility` (HC2/HC3/benefit codes etc. captured on the form)
-- `submitted_at?`, `accepted_at?`, `rejected_reason?`
-- `created_at`, `updated_at`, `created_by`
-- Audit trail (append-only `egos_claim_event`).
-
-### 3.3 `egos_signature`
-- `id`, `claim_id`, `role` enum: `patient | performer`
-- `image_ref` (object-store key for the signature image / vector)
-- `captured_at`, `capture_method`, `device_info`
-- `signatory_name`, `declaration_version`
-
-### 3.4 `egos_pvn`
-- `id`, `branch_id`, `venue_id`, `internal_ref`, `pvn_ref?` (PCSE), `status`
-- `date_of_visit`, `estimated_time_of_visit`
-- `contractor_details` (snapshot from branch setup)
-- `patients[]` (a PVN can list many patients at a venue)
-- Links to resulting `egos_claim` (GOS6) rows.
-
-### 3.5 `egos_venue`
-- `id`, `branch_id`, `name`, `address`, `postcode`
-- `premises_type` enum: `D-DayCentre | H-Home | N-NursingHome | R-ResidentialHome | S-ShelteredHome`
-- `contact_name`
-
-### 3.6 `egos_payment_statement` + `egos_payment_line`
-- Header from imported PCSE CSV; lines matched to claims for reconciliation.
-
-### 3.7 GOS form payloads
-Each `form_type` has a versioned JSON schema describing its fields (eligibility, clinical declarations, voucher band, prescription, performer declaration, etc.). Store as JSONB validated against the schema version recorded on the row, so form revisions by NHS/PCSE don't break old records.
+| Form    | What it claims for                                          | Key dependency |
+|---------|------------------------------------------------------------|----------------|
+| GOS1    | NHS-funded sight test                                      | — (everyday, high volume) |
+| GOS3    | Optical voucher towards spectacles (incl. **takeaway**)    | Dispensed order / voucher value |
+| GOS3_VO | Voucher-only ("takeaway") variant                          | Patient takes voucher elsewhere |
+| GOS4    | Repair / replacement of spectacles                        | — |
+| GOS5    | Complex / supplementary                                   | — |
+| GOS6    | Domiciliary (home / care-home) sight test                 | An **accepted PVN** |
+| PVN     | Pre-Visit Notification (precedes a GOS6)                  | A **venue** + visit date/time |
 
 ---
 
-## 4. Claim lifecycle (state machine)
+## 2. Where eGOS lives in the PMS
 
-Statuses observed in the legacy product, normalised:
+eGOS is not a silo — it threads through modules the practice already uses. The integration points:
 
 ```
-                          ┌─────────────────────────────────────────┐
-                          ▼                                         │
-  DRAFT / DATA_ENTRY_IN_PROGRESS ──> READY_TO_CLAIM ──> SUBMITTED ──┤
-                          │                                │        │
-                          │                                ▼        │
-                          │                          AWAITING_REVIEW│
-                          │                                │        │
-                          │                ┌───────────────┼────────┘
-                          │                ▼               ▼
-                          │            ACCEPTED         REJECTED ──> (fix) ──> READY_TO_CLAIM
-                          │                │            FAILED_VALIDATION
-                          │                ▼            ERROR
-                          │              PAID
-                          ▼
-                       CANCELLED / CLOSED
+        ┌──────────────────────────────────────────────────────────┐
+        │                     SmartOptics PMS                      │
+        │                                                          │
+        │  Patient Record ─────┐                                   │
+        │   • start a claim    │                                   │
+        │   • create a PVN     │     ┌────────────────────┐        │
+        │   • capture signature├────►│      eGOS core      │       │
+        │                      │     │  • claims engine    │  XML  │   ┌──────────────┐
+        │  Appointments/Diary ─┤     │  • PVN engine       │◄─────►│   │ NHS Gateway  │
+        │   • claim from appt  │     │  • status worklists │       │   │ (PCSE) —      │
+        │   • end-of-day check │     │  • reconciliation   │       │   │ assumed live  │
+        │                      │     │  • signing service  │       │   └──────────────┘
+        │  Till / Dispensing ──┤     └────────────────────┘        │
+        │   • voucher value    │              ▲                    │
+        │   • payment type     │              │                    │
+        │                      │              │                    │
+        │  Business Intelligence / Reporting ─┘                    │
+        │   • worklists, payments import, exports                  │
+        │                                                          │
+        │  Branch Setup → Integrations (eGOS config)               │
+        └──────────────────────────────────────────────────────────┘
 ```
 
-- **Unfinished** = anything not in `{ACCEPTED, PAID}` → appears in worklists for staff to action.
-- **Finished** = `ACCEPTED` (clinically/administratively done) or `PAID` (money reconciled).
-- `REJECTED | FAILED_VALIDATION | ERROR` are recoverable: surface the PCSE reason, let staff correct and resubmit.
-- Every transition writes an immutable `egos_claim_event` (who/when/from→to/payload) for audit.
-
----
-
-## 5. Functional requirements
-
-### 5.1 Onboarding & configuration
-- Per-branch eGOS setup screen capturing licence no, org code, PCSE credentials, signature method, voucher auto-populate.
-- PSK provisioning workflow: in-app request that we (vendor) action with PCSE; PSK stored only in the secrets manager, referenced by handle.
-- Self-service "test connection" against PCSE to confirm credentials before go-live.
-
-### 5.2 Create & complete a claim
-- Start a claim from: **patient record**, **appointment**, or the **eGOS worklist**. Pre-populate patient demographics, performer, eligibility from the patient/appointment context.
-- Form-type-specific guided form (validation client + server side against the form schema).
-- **Voucher auto-population** (GOS3): pull the voucher band/value from the dispensed order / till where configured.
-- Save as draft at any point; "Ready to Claim" gate runs full validation.
-- **Rejections handling:** dedicated view of rejected/failed claims with the PCSE reason inline and a one-click "correct & resubmit" that reopens the form.
-
-### 5.3 Domiciliary: PVN → GOS6
-- Create a PVN from the patient record (pre-populates patient + assigned venue) or from reporting (blank PVN, contractor details from branch).
-- A PVN must be **≥24h before** the visit and carry **date + time**.
-- Submit PVN → must reach **ACCEPTED** before a GOS6 can be claimed against it.
-- GOS6 creation auto-finds the patient's accepted PVN and populates PVN reference + "address where sight test took place".
-- **Changes to date/time → create a NEW PVN** (recommended) rather than editing; editing a submitted PVN uses a different message format and is discouraged.
-- Cancel a PVN only if previously accepted (otherwise delete).
-- **Venues:** CRUD venues with premises type; assign many patients to one venue; assigning a venue can temporarily override the patient's address (restored on removal).
-
-### 5.4 Signature capture (cloud-native)
-Patient + performer signatures, captured on a touch device. Replace the legacy "signature webpage + refresh list" polling model with a real-time cloud flow:
-- From the open claim, staff hit **Request signature** → SmartOptics pushes a signing session to the practice's paired device(s) in real time (WebSocket/push), no manual "refresh list".
-- Device shows patient declarations (reasons for NHS test / eligibility) for the patient to read and accept, then captures the signature; performer signs likewise.
-- Signature returns to the claim instantly and is stored as `egos_signature`.
-- Support the same device classes the legacy system did — Android tablet, iPad/Safari, dedicated e-signature pad — but as **first-class paired devices**, authenticated by account/branch rather than re-typing licence-no + postcode each session.
-- Configurable default method per branch; per-claim override.
-- Works for domiciliary/off-site (device just needs internet — see §11 offline note).
-
-### 5.5 Submission to PCSE
-- Build the form-type XML from `form_payload`, sign/secure with PSK, POST to PCSE endpoint.
-- Asynchronous: submission returns a pending state; a worker polls/receives PCSE responses and advances claim status.
-- Idempotent submit (dedupe on internal ref) so retries can't double-claim.
-- Full request/response logged (PII-aware) for support.
-
-### 5.6 Management screen / worklists
-- A live **eGOS dashboard** (the cloud successor to the FLEX "eGOS widget"/management screen): claims by status, by form type, by date, by branch.
-- Built-in saved worklists mirroring the legacy "popular searches":
-  - Unfinished claims (need action)
-  - Rejected / failed validation
-  - Today's claims (end-of-day "did everything submit?")
-  - GOS3 takeaway vouchers outstanding / to retrieve
-- Filter by date range, form type, status, branch; export.
-
-### 5.7 Till / voucher reconciliation
-Cross-check the till against eGOS, both directions (legacy "popular searches"):
-- **Voucher in till but no eGOS claim started** (missing claim).
-- **eGOS claim but no matching till voucher** (missing till entry).
-- Surface as actionable lists tied to patient + invoice + claim.
-
-### 5.8 Payment reconciliation
-- Import the **PCSE statement CSV** (expanded format) monthly.
-- Match statement lines to claims; set `PAID`, `paid_amount`, `paid_date`.
-- **Under/overpaid detection** (esp. GOS3/4): flag where `paid_amount != claimed_amount`.
-- Keep the imported statement available (e.g. for the accountant).
-
-### 5.9 Reporting
-- Claims by status / date / form type, printable + exportable.
-- Reconciliation reports (till↔eGOS, claimed↔paid).
-- **3-month time-limit ageing report**: claims approaching the deadline, plus a "write-off" workflow for uncollected GOS3 takeaways.
-- GOS3 takeaway retrieval list.
-
----
-
-## 6. Integration architecture (PCSE)
-
-```
- SmartOptics (cloud)                                   PCSE / NHS
- ┌───────────────────────────┐                         ┌──────────────┐
- │ eGOS API (claims, PVN)     │                         │              │
- │   │                        │   XML over HTTPS        │  eOphthalmic │
- │   ├─ form builder ─────────┼──── submit ───────────► │  Payments    │
- │   │                        │   (PSK-secured)         │  endpoint    │
- │   ├─ submission worker ◄───┼──── async response ──── │              │
- │   │   (queue + retries)    │                         └──────────────┘
- │   └─ signature service     │
- │        (real-time push)    │        ┌──────────────────────────┐
- └───────────────────────────┘         │ Secrets manager (PSK,     │
-                                        │ PCSE creds per branch)    │
-                                        └──────────────────────────┘
-```
-
-Key points:
-- **Async, queue-backed submission worker** (the SmartOptics equivalent of a background job): build XML → submit → handle PCSE acknowledgements/rejections → advance status. Retries with backoff; dead-letter for manual review.
-- **PSK & credentials** live in a secrets manager, referenced per branch — never in the DB rows or source.
-- **Form schemas versioned** so NHS/PCSE form changes are a config/schema update, not a code rewrite.
-- **Separate message formats** for new PVN vs PVN edit vs cancel — model as distinct message builders.
-
----
-
-## 7. Cloud-native fit within SmartOptics
-
-The legacy product is desktop FLEX with bolt-on cloud workarounds. SmartOptics is 100% cloud, so several legacy frictions disappear:
-
-| Legacy (FLEX/Nova) constraint | SmartOptics (cloud) approach |
+| PMS module | What eGOS adds / uses |
 |---|---|
-| Signatures need "FLEX open" + dial-in for domiciliary | Signing session is a cloud push to any paired device; no host app must be running |
-| Signature webpage: re-enter licence-no + postcode, manually "refresh list" | Paired, authenticated devices; real-time session push, no polling |
-| Per-practice signature URL (Nova `/signatures`) | One app, tenant-scoped sessions; no per-practice URLs to bookmark |
-| Monthly CSV import is the only payment path | Keep CSV import **and** add API-based statement retrieval if/when PCSE exposes one |
-| Reports run on the local DB | Multi-branch reporting across the estate from one place |
-| Claim status only as fresh as last "refresh" | Webhook/worker keeps status live |
-
-The module slots in as a standard SmartOptics feature module (API service + worker + UI), reusing existing patient, appointment, till/invoice, branch and auth services rather than duplicating them.
+| **Patient Record** | Start a claim or PVN with patient details pre-filled; eligibility capture; signature request; view a patient's claim history. |
+| **Appointments / Diary** | Start a GOS1 straight from the appointment; end-of-day "did every appointment get claimed?" check. |
+| **Till / Dispensing / Invoicing** | GOS3 voucher value flows from the dispensed order; voucher used as a till payment type; basis for till↔eGOS reconciliation. |
+| **Business Intelligence / Reporting** | eGOS worklists and "popular searches", PCSE statement import, payment reconciliation, exports/printouts. |
+| **Branch Setup → Integrations** | Per-branch eGOS configuration (licence no, org code, credentials, signature method). |
 
 ---
 
-## 8. Security, compliance & audit
+## 3. One-time setup (per branch)
 
-- **NHS Data Security & Protection Toolkit** alignment; data residency in UK (the voice stack already targets UK South / Frankfurt — keep eGOS data UK-resident).
-- PSK and PCSE credentials in a secrets manager; encrypted at rest; least-privilege access; rotation supported.
-- Signatures are legal artefacts: store immutably with capture metadata (who/when/device/declaration version); never editable after capture.
-- Append-only audit trail on every claim/PVN transition and every PCSE message.
-- PII minimisation in logs; configurable retention; patient data handling per existing SmartOptics DPA.
-- Role-based access (the legacy "add eGOS to Staff Type" becomes a proper permission).
+Before claiming, a branch is configured once under **Setup → Branch → Integrations → eGOS (NHS England)**:
 
----
+- **Practice licence number** (8-digit site number) and **NHS organisation/contractor code**.
+- **PCSE credentials + Pre-Shared Key (PSK)** — provisioned on sign-up; stored as secret references, never shown in plain text.
+- **Auto-populate voucher values** (on/off) — pulls GOS3 voucher amounts from the dispensed order.
+- **Default signature method**: e-signature pad / mobile device / on-screen / external capture.
+- **Active** toggle and a one-click **"Test NHS connection"** to confirm the link is live before go-live.
+- **Permissions**: an "eGOS" capability is granted to relevant staff roles (the cloud equivalent of the legacy "add to Staff Type").
 
-## 9. Phased delivery plan
-
-1. **Phase 1 — GOS1 happy path.** Config/onboarding, claim create/complete, signature capture, submit, status tracking, basic worklist. Highest volume, proves the PCSE integration end-to-end.
-2. **Phase 2 — GOS3 + till reconciliation.** Voucher auto-population, takeaway handling, till↔eGOS cross-checks.
-3. **Phase 3 — Payments.** PCSE statement import, paid/under/overpaid reconciliation, ageing/time-limit reporting.
-4. **Phase 4 — Domiciliary.** Venues, PVN lifecycle, GOS6, off-site signing.
-5. **Phase 5 — GOS4/5 + reporting polish.** Remaining form types, full reporting suite, write-off workflow.
-
-Each phase is shippable and reuses the Phase-1 submission/worklist plumbing.
+Multi-branch groups configure each branch separately, because the NHS contractor identity (licence no / org code / PSK) is per branch — every submission carries the correct identity.
 
 ---
 
-## 10. Multi-tenancy & data scoping
+## 4. Claim lifecycle (as staff see it)
 
-- Everything keyed by `branch_id` (and an owning `practice`/`organisation` above branch).
-- A user may have access to multiple branches; eGOS worklists, dashboards and reports respect that scope and support cross-branch views for groups.
-- PCSE identity (licence no, org code, PSK) is **per branch**, so submissions always carry the correct contractor identity.
+Every claim moves through a status the PMS shows everywhere it's listed:
 
----
+```
+ DATA ENTRY IN PROGRESS ─► READY TO CLAIM ─► SUBMITTED ─► AWAITING REVIEW ─┬─► ACCEPTED ─► PAID
+        (draft)                                                            │
+                                                                           └─► REJECTED / FAILED VALIDATION / ERROR
+                                                                                   │
+                                                                                   └─(correct)─► READY TO CLAIM
+   any time, if appropriate:  CANCELLED  /  CLOSED
+```
 
-## 11. Edge cases & operational notes
-
-- **Off-site / poor signal (domiciliary):** signing device may be offline at point of care. Provide a PWA signing client that can capture the signature locally and sync the claim when back online; surface clearly that the claim is "captured, pending submission".
-- **3-month deadline:** proactive surfacing + write-off workflow (uncollected GOS3 takeaways).
-- **PVN date/time change:** force "create new PVN" path; block silent edits.
-- **Idempotency:** dedupe submissions on internal ref to prevent double-claims on retry.
-- **PCSE downtime:** queue and retry; never lose a claim because the endpoint was briefly unavailable.
-- **Form-version drift:** validate against the schema version stored on the claim, not "latest".
-
----
-
-## 12. Potential improvements (cloud + SmartOptics differentiators)
-
-These go beyond parity with FLEX/Nova:
-
-1. **Voice-driven claim entry.** SmartOptics already has the streaming Azure Speech stack with an optical/GOS phrase list (`server.py`). Let the optometrist dictate the sight-test findings and have the GOS form fields populate by voice — a genuine differentiator no legacy GOS product has. The phrase list already includes `GOS`, `GOS one`, `GOS three`, `GOS six`, `voucher`, `domiciliary`, `HC2`, `HC3`.
-2. **Real-time signing, no polling.** Replace "open the webpage and press Refresh List" with a pushed signing session to paired devices — faster, fewer support calls.
-3. **Auto-reconciliation.** Continuously match till vouchers ↔ eGOS claims and flag mismatches the moment they happen, instead of monthly popular-search sweeps.
-4. **API-based payment reconciliation.** If PCSE offers (or later offers) a statement API, replace the manual monthly CSV import with automatic nightly sync; keep CSV as fallback.
-5. **Deadline guardrails.** Automatic ageing alerts and nudges ("GOS3 takeaway for patient X expires in 14 days — chase or write off"), turning a manual monthly chore into a managed queue.
-6. **Pre-submission validation against PCSE rules.** Validate the full ruleset client+server **before** submit so "Failed Validation" rejections become rare — catch them at data entry, not after a round-trip.
-7. **Estate-wide dashboards.** For multi-branch groups, one live view of claim health, rejection rates, and outstanding money across all branches.
-8. **Smart eligibility capture.** Guided eligibility (HC2/HC3/benefit) with inline checks to reduce eligibility-based rejections.
-9. **Anomaly detection on payments.** Flag systematic under/overpayments (e.g. a form type consistently paid below claim) for the practice to query with PCSE.
-10. **Full digital audit & e-sign provenance.** Immutable, queryable history per claim — useful for NHS post-payment verification/audit, which the legacy product handles only via printouts.
+- **Unfinished** = anything not yet `ACCEPTED` or `PAID`. These are what staff chase — they populate the worklists.
+- **Finished** = `ACCEPTED` (NHS has accepted it) or `PAID` (money reconciled against a statement).
+- **Rejected / Failed Validation / Error** are recoverable: the NHS reason is shown inline; staff correct and resubmit.
+- Every status change is written to an immutable audit trail (who, when, from→to) for NHS post-payment verification.
 
 ---
 
-## 13. Open questions / what's still needed
+## 5. Core workflows (how it actually works day to day)
 
-The supplied documents are **end-user help articles**, not technical interface specs. To build the PCSE integration we still need:
+### 5.1 GOS1 — NHS sight test (the everyday path)
+1. Patient attends; the appointment is open in the diary, or the patient record is open.
+2. Staff click **New eGOS claim → GOS1**. Patient demographics, performer and date pre-fill from context.
+3. Staff complete the guided GOS1 form: eligibility (e.g. age, benefit/HC2/HC3), clinical declarations, performer declaration. Validation runs as they type.
+4. **Request signatures** — patient signs the eligibility declaration, performer signs theirs (see §6). Signatures attach to the claim.
+5. The claim becomes **Ready to Claim**; staff **Submit**. It goes to **Submitted → Awaiting Review** and the PMS hands it to the NHS Gateway.
+6. The NHS response comes back asynchronously and the status advances to **Accepted** (or Rejected with a reason).
 
-1. **PCSE/eGOS message schemas** — the XML formats for each form type (GOS1/3/4/5/6), PVN (new/edit/cancel), and the acknowledgement/response messages.
-2. **PCSE endpoint details** — URLs (test + prod), transport, and exactly how the **PSK** secures/authenticates a message (signing? envelope encryption?).
-3. **Status vocabulary** — the authoritative PCSE status codes and rejection-reason codes to map onto our state machine.
-4. **PCSE statement CSV spec** — exact "expanded" column layout for the payment importer.
-5. **Onboarding/PSK request process** — current PCSE process for issuing a PSK to a software vendor on a practice's behalf.
-6. **Eligibility/declaration rule set** — the validation rules behind each GOS form to power pre-submission validation.
-7. **Certification** — any PCSE/NHS conformance testing required before a vendor can go live.
+### 5.2 GOS3 — optical voucher (incl. takeaway)
+1. The patient is dispensed spectacles; the **voucher band/value comes from the dispensed order / till** (auto-populated if configured).
+2. Staff create a **GOS3** claim; the voucher value, prescription and eligibility carry over.
+3. Sign + submit as for GOS1.
+4. **Takeaway / GOS3_VO:** where the patient takes the voucher to spend elsewhere, the claim is flagged as takeaway; the module tracks outstanding takeaway vouchers and provides a **retrieval/chase list** (see §7) and a write-off path for uncollected ones near the deadline.
 
-Once we have the PCSE technical pack (items 1–4 especially), this functional spec can be turned into a concrete API + schema + worker design.
+### 5.3 GOS6 — domiciliary, via a PVN
+1. **Create a PVN** from the patient record (patient + assigned venue pre-filled) or from Reporting (blank, contractor details from branch). A PVN states the **venue** and the **date + time** of the visit and must be raised **≥24h before** the visit.
+2. **Submit the PVN**; it must reach **Accepted** before a GOS6 can be claimed.
+3. On the visit, staff create a **GOS6**; the module **auto-finds the accepted PVN** and fills the PVN reference and "address where the sight test took place".
+4. Capture signatures on the device at the point of care (§6), complete and submit.
+5. **If the visit date/time changes → raise a NEW PVN** and attach that to the GOS6 (the module steers staff down this path rather than editing a submitted PVN). A PVN can only be cancelled if previously accepted; otherwise it is deleted.
+6. **Venues** are managed records (Day Centre / Home / Nursing / Residential / Sheltered). Many patients can be assigned to one venue; assigning a venue can temporarily set the patient's address to the venue's (restored on removal).
+
+### 5.4 End-of-day check
+- A **Today's Claims** view (and dashboard tile) lets staff confirm every appointment/voucher that should have produced a claim actually did, and that nothing is stuck in **Data Entry in Progress** or **Rejected**. Compare accepted-claim count against appointments in the diary and vouchers through the till.
+
+### 5.5 Monthly payment reconciliation
+- Import the **PCSE statement** (the practice downloads it; the module ingests it). The module matches statement lines to claims, sets them **Paid** with `paid_amount`/`paid_date`, and flags **under/overpayments** (especially GOS3/4 where paid value can differ from claimed).
+- The imported statement is retained (e.g. for the accountant).
+- *(Improvement, if the NHS exposes a statement API: replace the manual import with automatic nightly sync — see §10.)*
+
+---
+
+## 6. Signature capture in the PMS (cloud-native)
+
+Most GOS forms need a **patient** signature (declaration) and a **performer** signature. SmartOptics replaces the legacy "open a signature webpage and press Refresh List" polling model with a real-time cloud flow:
+
+1. From the open claim, staff click **Request signature**.
+2. The PMS **pushes a signing session in real time** to the branch's paired device(s) — an Android tablet, an iPad (Safari), or a dedicated e-signature pad. No manual list-refresh, no re-typing licence-no + postcode each time; devices are **paired once** and authenticated by account/branch.
+3. The device shows the patient the relevant declarations/eligibility reasons; the patient reads, accepts and signs. The performer signs likewise.
+4. The signature returns to the claim **instantly** and is stored immutably with capture metadata (who/when/device/declaration version).
+5. The branch default method is configurable; any claim can override it. The same flow works **off-site** for domiciliary — the device just needs internet (offline handling in §9).
+
+---
+
+## 7. Worklists, management screen & reporting
+
+The cloud successor to the FLEX "eGOS widget" + "popular searches" is a live **eGOS dashboard** plus saved worklists, all filterable by date range, form type, status and branch, and all exportable/printable:
+
+- **Unfinished claims** — need finishing or submitting (not yet Accepted/Paid).
+- **Rejected / failed validation** — with the NHS reason inline and one-click correct-and-resubmit.
+- **Today's claims** — end-of-day completeness check.
+- **Till voucher but no eGOS claim** — voucher put through the till with no claim started (missing claim).
+- **eGOS claim but no till voucher** — claim exists with no matching till entry (missing till payment).
+- **GOS3 takeaway outstanding / to retrieve** — vouchers to chase or write off.
+- **Claimed ≠ paid** — under/overpaid claims (GOS3/4) after statement import.
+- **Time-limit ageing** — claims approaching the **3-month** submission deadline (as of 01/01/2024), with a write-off workflow for uncollected GOS3 takeaways.
+
+Reporting also offers claim lists by specific status(es), date and form type for print/export, and reconciliation reports (till↔eGOS, claimed↔paid). Multi-branch groups get estate-wide views.
+
+---
+
+## 8. Data model (summary)
+
+All tenant-scoped (by `practice`/`branch`):
+
+- **`egos_claim`** — patient, appointment, performer, `form_type`, `status`, internal + NHS refs, `form_payload` (versioned JSON for the GOS form), `claimed_amount`, `paid_amount/date`, eligibility, timestamps, `pvn_id?`, `venue_id?`.
+- **`egos_claim_event`** — append-only audit of every transition.
+- **`egos_signature`** — `claim_id`, `role` (patient/performer), image ref, capture metadata, declaration version.
+- **`egos_pvn`** — venue, internal + NHS refs, status, visit date/time, contractor snapshot, patient list, links to resulting GOS6 claims.
+- **`egos_venue`** — name, address, postcode, premises type, contact.
+- **`egos_payment_statement` / `egos_payment_line`** — imported PCSE statement, matched to claims.
+- **`egos_practice_config`** — per-branch licence no, org code, credential/PSK secret refs, signature method, flags.
+
+GOS form fields are stored as **versioned JSON** validated against the schema version recorded on the row, so NHS form revisions don't break historical records.
+
+---
+
+## 9. Operational behaviour & edge cases
+
+- **Async submission:** submitting a claim/PVN never blocks the user. A background worker builds the NHS message, submits it, processes the NHS response and advances status; the PMS surfaces status changes live.
+- **Idempotent submit:** dedupe on the internal ref so a retry can never double-claim.
+- **NHS link briefly unavailable:** queue and retry with backoff; nothing is lost, and the claim simply shows as pending until acknowledged.
+- **Off-site / poor signal (domiciliary):** the signing client captures locally and syncs the claim when back online; the claim is shown as "captured, pending submission".
+- **Date/time change on a PVN:** the module forces the "new PVN" path rather than editing a submitted one.
+- **Form-version drift:** claims validate against the schema version stored on the claim, not "latest".
+- **3-month deadline:** proactively surfaced; uncollected GOS3 takeaways can be written off via a managed workflow.
+
+---
+
+## 10. Why this is better than the legacy (FLEX/Nova) experience
+
+| Legacy constraint | SmartOptics (cloud) |
+|---|---|
+| Signatures need the desktop app open; domiciliary needs dial-in | Signing session is pushed to any paired device; no host app required |
+| Signature webpage: re-enter licence-no + postcode, press "Refresh List" | Paired authenticated devices, real-time push, no polling |
+| Per-practice signature URL to bookmark | One app, tenant-scoped sessions |
+| Status only as fresh as the last manual "refresh claims" | Worker keeps status live |
+| Monthly CSV import is the only payment path | CSV import now, automatic statement sync when the NHS API allows |
+| Reconciliation = monthly "popular search" sweeps | Continuous, real-time till↔eGOS matching with instant flags |
+| Reports run on a single local DB | Estate-wide multi-branch reporting |
+| **No voice** | **Voice-driven form entry** using SmartOptics' existing Azure Speech stack (the optical/GOS phrase list already covers `GOS`, `GOS one/three/six`, `voucher`, `domiciliary`, `HC2`, `HC3`) — dictate findings, fields populate |
+| Validation failures found after an NHS round-trip | Pre-submission validation against the NHS ruleset → rejections become rare |
+
+---
+
+## 11. Assumed-available NHS dependency (the "NHS Gateway")
+
+Per the working assumption, the following are provided once the practice is signed up for eGOS, and the PMS consumes them through a single internal **NHS Gateway** service:
+
+- **Submission interface** — accepts the GOS form messages (GOS1/3/4/5/6) and PVN messages (new / edit / cancel), secured with the practice's PSK and identified by licence no / org code.
+- **Status/response channel** — asynchronous accept/reject/validation responses with reason codes, mapped onto the §4 lifecycle.
+- **Signing** — the patient/performer declaration content and signing flow the device renders.
+- **Payment statements** — the PCSE statement the practice imports (and, if/when offered, an API to retrieve it automatically).
+- **Eligibility rules** — the validation ruleset behind each GOS form, used for pre-submission checks.
+
+Engineering note: isolating all NHS specifics behind the Gateway service means the rest of the PMS (patient record, claims engine, worklists, reconciliation) is built and testable against a mock Gateway now, and wired to the live NHS endpoints on sign-up without touching the workflow code.
+
+---
+
+## 12. Phased delivery
+
+1. **GOS1 happy path** — config, create/complete, signing, submit, status, basic worklist (proves the Gateway end-to-end).
+2. **GOS3 + till reconciliation** — voucher auto-population, takeaway tracking, till↔eGOS checks.
+3. **Payments** — statement import, paid/under/overpaid reconciliation, ageing/time-limit reporting.
+4. **Domiciliary** — venues, PVN lifecycle, GOS6, off-site signing.
+5. **GOS4/5 + reporting polish** — remaining forms, full reporting suite, write-off workflow.
+
+Each phase is independently shippable and reuses the Phase-1 submission, signing and worklist plumbing.
