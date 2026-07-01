@@ -1,6 +1,6 @@
 ---
 title: "eGOS (NHS England) Module — Specification"
-subtitle: "SmartOptics · Rev 1 · 29 June 2026 · Confidential — Internal Only"
+subtitle: "SmartOptics · Rev 2 · 1 July 2026 · Confidential — Internal Only"
 ---
 
 # Document Details
@@ -8,7 +8,7 @@ subtitle: "SmartOptics · Rev 1 · 29 June 2026 · Confidential — Internal Onl
 | Field | Value |
 |---|---|
 | Document | SmartOptics eGOS (NHS England) Module Specification |
-| Revision | Rev 1 — initial draft. Specifies the NHS England electronic GOS claims module: GOS 1 / 3 / 4 / 5 / 6, Pre-Visit Notifications and domiciliary, e-signature capture, submission to NHS / PCSE, payment and till reconciliation, worklists and reporting. Folds in a competitive-gap review of Optix / Optix 2 and the incumbent FLEX / Nova product. |
+| Revision | Rev 2 (supersedes Rev 1) — folds in the Nova eGOS user-guide detail: the GOS3 takeaway voucher-/authorisation-code issue on submit and the cross-practice GOS3 Retrieval workflow, signature capture before the sight exam with a 12-hour stored signature, the patient-declaration fields (signatory identity, ethnicity, declaration date, able-to-sign), a dependency on the sight-exam record, and the NHS status names (Validated / Terminated / Payment Sent). Additive — all Rev 1 content carries forward. Rev 1 — initial draft specifying the NHS England electronic GOS claims module: GOS 1 / 3 / 4 / 5 / 6, Pre-Visit Notifications and domiciliary, e-signature capture, submission to NHS / PCSE, payment and till reconciliation, worklists and reporting; folded in a competitive-gap review of Optix / Optix 2 and the incumbent FLEX / Nova product. |
 | Status | Draft for review. |
 | Module sequence | Depends on the Patient module, the Till / Dispensing module and the Business Intelligence module; consumes the NHS Gateway integration; relates to the Diary / Calendar module (domiciliary visits, end-of-day claim check) and the Communications module (signing-session push, patient chase). Exact sequence position to be set in the Top-Level Spec module development plan. |
 | Author | Claude (initial draft) |
@@ -19,6 +19,7 @@ subtitle: "SmartOptics · Rev 1 · 29 June 2026 · Confidential — Internal Onl
 
 | Date | Author | Revision | Comments |
 |---|---|---|---|
+| 1 Jul 2026 | Claude | Rev 2 | Nova eGOS user-guide fold-in. Adds the GOS3 takeaway voucher-/authorisation-code issue on submit (§8.2) and the cross-practice GOS3 Retrieval form type and workflow (§3, §8.2a); signature capture before the sight exam with a 12-hour stored signature apportioned to the claim, and reuse of an existing captured signature for adults not needing a carer (§9.2); the patient-declaration fields — signatory identity, ethnicity, declaration date, able-to-sign (§9.1, §11); a cross-module dependency on the sight-exam record from the Clinical Entry module (§0.6); and the NHS status names Validated, Terminated (submitted takeaway) and Payment Sent reconciled into the lifecycle (§6). Additive — all Rev 1 content carries forward. |
 | 29 Jun 2026 | Claude | Rev 1 | Initial draft. Establishes the eGOS module in the SmartOptics house style: cross-module critical issues (§0), objective (§1), scope (§2), conceptual model (§3), module integration map (§4), configuration and roles (§5), claim lifecycle (§6), submission-readiness / auto-submit model (§7), core workflows for GOS 1 / 3 / 4 / 6 and domiciliary (§8), signature capture and rejection prevention (§9), worklists and reporting (§10), data model (§11), integration with other modules and the NHS Gateway (§12), security and audit (§13), competitive analysis and differentiation (§14), feature comparison matrix (§15), phased delivery (§16), open questions (§17), referenced documents (§18). Derived from the Optinet FLEX / Nova help material and an Optix / Optix 2 help-documentation review. |
 
 # 0. Critical issues — read before sign-off
@@ -47,6 +48,10 @@ The signing-session push to a paired tablet (§9) depends on the platform's real
 
 Importing the PCSE statement and auto-reconciling payments (§8.6, §10) is delivered in the Business Intelligence module. The eGOS module raises the claim and exposes claimed / paid state; BI owns the statement import and the reconciliation reports.
 
+## 0.6 IMPORTANT — Every claim requires a sight-exam record from the Clinical Entry module
+
+Each GOS claim requires a linked sight-exam (refraction) record, from which much of the form is auto-populated. The eGOS module reads that record; it is owned by the Clinical Entry module. A GOS1 may be signed on patient arrival before the exam is keyed — the signature is stored for 12 hours and apportioned once the exam is added (§7, §9.2) — but the claim cannot be completed and submitted until its sight-exam record exists.
+
 # 1. Objective and goal statement
 
 This document specifies the **eGOS (NHS England) module** — the surface through which a practice creates, signs, submits, tracks, reconciles and reports on NHS General Ophthalmic Services claims to Primary Care Support England (PCSE), with no paper and no separate NHS portal.
@@ -63,6 +68,7 @@ The product goal is that NHS claiming becomes a by-product of normal front-of-ho
 
 - GOS 1 (NHS sight test) claim creation, signing, submission and tracking.
 - GOS 3 (optical voucher) raised within the spectacle dispense, with live voucher-type / value calculation, the takeaway / voucher-only variant, and the two-stage (order + collection) patient signature.
+- GOS 3 Retrieval — completing, at the dispensing practice, a takeaway voucher a patient obtained from another practice, matched by voucher and authorisation codes (§8.2a).
 - GOS 4 (repair / replacement) including the NHS approval code for adults.
 - GOS 5 (complex / supplementary).
 - GOS 6 (domiciliary sight test) and the Pre-Visit Notification (PVN) lifecycle it depends on.
@@ -88,7 +94,8 @@ The product goal is that NHS claiming becomes a by-product of normal front-of-ho
 The module is built on a small set of concepts. Every screen and API call reduces to operations on them.
 
 - **Claim** — one GOS claim of a given form type for one patient, carrying a status, a readiness checklist, the form payload, eligibility, the claimed and paid amounts, and links to its signatures and (for domiciliary) its PVN and venue.
-- **Form type** — `GOS1`, `GOS3`, `GOS3_VO` (takeaway / voucher-only), `GOS4`, `GOS5`, `GOS6`. The form payload is versioned per type so NHS form revisions do not break historical records.
+- **Form type** — `GOS1`, `GOS3`, `GOS3_VO` (takeaway / voucher-only), `GOS3_RETRIEVAL` (retrieve a takeaway issued elsewhere), `GOS4`, `GOS5`, `GOS6`. The form payload is versioned per type so NHS form revisions do not break historical records.
+- **Takeaway codes** — on submitting a GOS3 voucher-only (takeaway) claim, the NHS issues a **voucher code** and an **authorisation code**; these are printed on the voucher (or emailed to the patient) and are what another practice enters to retrieve and complete the claim (§8.2a).
 - **PVN (Pre-Visit Notification)** — the precursor to a GOS6: a venue and a date / time of visit, submitted to PCSE and required to be Accepted before the GOS6 can be claimed.
 - **Venue** — a domiciliary location (Day Centre / Home / Nursing / Residential / Sheltered Home), to which many patients may be linked for batch visits.
 - **Signature** — an immutable captured signature for a role (patient / performer / contractor) with capture metadata and the declaration version signed.
@@ -145,8 +152,10 @@ Every claim moves through a status shown everywhere it is listed:
    at any time, where valid:  CANCELLED  /  CLOSED
 ```
 
-- **Unfinished** = anything not yet `ACCEPTED` or `PAID`; these populate the worklists staff action.
-- **Finished** = `ACCEPTED` (NHS has accepted it) or `PAID` (money reconciled against a statement).
+- **Unfinished** = anything not yet `ACCEPTED` or `PAID` (`READY TO CLAIM` is also shown as *Ready For Claim*); these populate the worklists staff action.
+- Between `SUBMITTED` and `ACCEPTED` the NHS reports a **Validated** step (the claim passed validation and awaits acceptance); it is shown in the claim's status history.
+- **Finished** = `ACCEPTED` (NHS has accepted it; goes for payment later) or `PAID` — the NHS calls the final paid state **Payment Sent** — money reconciled against the statement (§8.6).
+- A submitted **GOS3 voucher-only (takeaway)** claim does not proceed to Accepted / Payment Sent; it ends at **Terminated** once its voucher and authorisation codes are issued for use elsewhere (§8.2a).
 - `REJECTED` / `FAILED VALIDATION` / `ERROR` are recoverable: the NHS reason is shown inline; staff correct and resubmit (§9.3).
 - Every transition writes an immutable event (§11) for NHS post-payment verification.
 
@@ -163,6 +172,8 @@ Rather than relying on staff to remember to submit, a claim carries a **readines
 | Contractor signed | The NHS contractor signs (individually or in a batch) |
 
 When all are met the claim moves itself **Ready → Submitted** and the submission worker (§12) picks it up. The dashboard shows each claim's checklist so staff can see at a glance what is outstanding. No daily preparation is needed — staff simply act as each patient comes through. Different form types carry different prerequisite sets (GOS4 needs only the supplier signature; GOS3 has a two-stage patient signature — §8.2).
+
+The checklist steps need not be completed in order. In particular, a GOS1 patient may sign on arrival **before** the sight exam is keyed: the signature is captured against the patient record, stored for 12 hours, and apportioned to the claim once the exam is added (§9.2). The claim still cannot submit until its sight-exam record exists (§0.6). Practices are advised to clear and submit all claims by end of day, because signatures are captured on the day of the visit.
 
 # 8. Core workflows
 
@@ -181,7 +192,15 @@ When all are met the claim moves itself **Ready → Submitted** and the submissi
 3. **Live claim-value calculation:** as frame, lenses, tint, prism, small-glasses and special-facial-characteristics supplements are added, the module computes the correct voucher type and the highest legitimate claim value, shown in the dispense summary, with an "explain this value" breakdown (§14).
 4. **Two-stage patient signature:** the patient signs (1 of 2) at order and (2 of 2) at collection. The pending GOS3 is not counted as a transaction until collection, so it stays off till sessions until the spectacles are collected.
 5. Performer / contractor sign (individually or batched); the claim auto-submits when its checklist completes.
-6. **Takeaway / GOS3_VO:** where the patient takes the voucher elsewhere, the claim is flagged as takeaway; the module tracks outstanding takeaway vouchers and provides a retrieval / chase list (§10) and a write-off path for uncollected ones near the deadline.
+6. **Takeaway / GOS3_VO:** where the patient takes the prescription to be dispensed elsewhere, a voucher-only claim is raised — link the existing GOS1, add the sight exam, the performer signs, and submit. **Only on submission does the NHS issue the voucher code and authorisation code**; the claim then moves to **Terminated** (it does not go to Accepted / Payment Sent). The voucher — carrying the two codes and the practice details — is printed on plain paper or emailed to the patient. The module also tracks outstanding takeaway vouchers with a chase list (§10) and a write-off path near the deadline.
+
+## 8.2a GOS3 Retrieval — completing a takeaway issued elsewhere
+
+When a patient was tested at another practice and brings their takeaway voucher here to be dispensed, the claim is already lodged with the NHS awaiting completion. To retrieve it:
+
+1. Ensure the patient exists in the system with **name, date of birth and address correct** — these are matched against the NHS record to pull the right claim.
+2. From the patient record, select **New → GOS 3 Retrieval** and enter the patient's **voucher code** and **authorisation code** (the two codes issued to them by the originating practice — §8.2 item 6).
+3. On a successful match the claim is retrieved and then completed and submitted exactly like a normal GOS3.
 
 ## 8.3 GOS4 — repair / replacement
 
@@ -217,12 +236,14 @@ NHS rejections are overwhelmingly eligibility / data errors, so the module preve
 - Eligibility reasons are auto-suggested from patient data (age, recorded benefits) and carried GOS1 → GOS3 / GOS4.
 - The last-exam date auto-populates from the record; "not known" is allowed and validated against NHS-held records on submission.
 - The GOC number format is validated on the performer's record; retest codes are constrained to valid values.
+- The patient declaration captures the **signatory's identity** (patient / partner / parent / guardian), **ethnicity**, the **declaration date**, and whether the patient is able to sign (otherwise a carer signs); much of the rest of the form is auto-populated from the linked sight-exam record.
 
 ## 9.2 Signature capture (cloud-native)
 
 Most GOS forms need a patient signature and a performer signature; the contractor also signs. The module pushes a signing session in real time to the branch's paired device(s) — an Android tablet, an iPad, or a dedicated e-signature pad — paired once and authenticated by account / branch (no re-typing the licence number and postcode each session).
 
 - The device presents the signatory the right view for their role (Patient / Performer / Contractor); the patient reads the declaration and signs; the signature returns to the claim instantly.
+- **Sign before the exam / reuse a stored signature:** a patient may sign on arrival before the exam is keyed; the signature is stored for 12 hours and apportioned to the claim once the exam is added. Where a signature is already captured on the patient record it can be apportioned to a new claim — adults only, and only where no carer signature is required — rather than re-signing.
 - **Batch signing:** performer and contractor signatures can be applied to a batch of claims in one action, not one-by-one.
 - Proxy signing (partner / parent / guardian) is supported with the relevant details captured.
 - The signature is stored immutably with capture metadata (who / when / device / declaration version).
@@ -253,9 +274,9 @@ Reporting also offers claim lists by status, date and form type for print / expo
 
 All entities are tenant-scoped (by practice / branch).
 
-- **EgosClaim** — patient, appointment, performer, contractor, `FormType`, `Status`, `Readiness` (the §7 checklist flags), internal and NHS references, `FormPayload` (versioned JSON for the GOS form), `ClaimedAmount`, `PaidAmount` / `PaidDate`, eligibility, `NhsApprovalCode` (GOS4), `PvnID`, `VenueID`, timestamps, created-by.
+- **EgosClaim** — patient, appointment, `SightExamID`, performer, contractor, `FormType` (incl. `GOS3_VO` and `GOS3_RETRIEVAL`), `Status`, `Readiness` (the §7 checklist flags), internal and NHS references, `FormPayload` (versioned JSON for the GOS form), `ClaimedAmount`, `PaidAmount` / `PaidDate`, eligibility (reason, signatory identity, ethnicity, declaration date, able-to-sign), `NhsApprovalCode` (GOS4), `VoucherCode` / `AuthorisationCode` (GOS3 takeaway / retrieval), `PvnID`, `VenueID`, timestamps, created-by.
 - **EgosClaimEvent** — append-only audit of every status transition (who / when / from → to / payload).
-- **EgosSignature** — `ClaimID`, `Role` (patient / performer / contractor), `Stage` (GOS3 1-of-2 / 2-of-2), image reference, capture metadata, declaration version.
+- **EgosSignature** — `ClaimID` (nullable while a signature is stored before its claim exists), `Role` (patient / performer / contractor), `Stage` (GOS3 1-of-2 / 2-of-2), image reference, capture metadata, declaration version, and — for a pre-exam patient signature — the capture time and 12-hour apportionment window.
 - **EgosPvn** — venue, internal and NHS references, status, visit date / time, contractor snapshot, patient list, links to resulting GOS6 claims.
 - **EgosVenue** — name, address, postcode, premises type, contact.
 - **EgosPaymentStatement / EgosPaymentLine** — imported PCSE statement header and lines, matched to claims.
@@ -393,4 +414,4 @@ Each phase is independently shippable and reuses the Phase-1 submission, signing
 - Business Intelligence Module Spec.
 - Communications Module Spec.
 - Practice DB Schema Index.
-- Source material: Optinet FLEX / Nova eGOS help articles (England overview, claims reports, checking submissions, signature webpage, signing on Android / Apple, PVN and GOS6, GOS3 takeaway retrieval, optometrist signatures, viewing all claims, management screen, voucher reconciliation); Optix / Optix 2 help documentation (Optix & Audix eGOS, GOS3, GOS4, Business Intelligence, release notes).
+- Source material: Optinet Nova eGOS User Guide; Optinet FLEX / Nova eGOS help articles (England overview, claims reports, checking submissions, signature webpage, signing on Android / Apple, PVN and GOS6, GOS3 takeaway retrieval, optometrist signatures, viewing all claims, management screen, voucher reconciliation); Optix / Optix 2 help documentation (Optix & Audix eGOS, GOS3, GOS4, Business Intelligence, release notes).
