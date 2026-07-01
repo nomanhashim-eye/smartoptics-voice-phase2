@@ -153,6 +153,7 @@
   .s-paid{background:#d7f0ec;color:#107c70}.s-paid .pd{background:#16a394}
   .s-rej{background:var(--coral-soft);color:var(--coral-deep)}.s-rej .pd{background:var(--coral-deep)}
   .s-draft{background:var(--bg-2);color:var(--muted)}.s-draft .pd{background:var(--muted)}
+  .s-term{background:#33455f;color:#dbe6f5}.s-term .pd{background:#9fb0c9}
   .ready{display:flex;gap:4px;align-items:center}
   .ready i{width:15px;height:15px;border-radius:5px;background:var(--bg-2);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:var(--faint)}
   .ready i.ok{background:var(--mint);color:#06371d}
@@ -354,6 +355,7 @@
           <button class="abtn" data-cf="pop" data-cf-what="a GOS3 voucher inside the spectacle dispense — value calculated live" data-cf-why="GOS3 is raised within the dispense; the system picks the correct voucher type and highest legitimate value. Two-stage signature (order + collection).">＋ GOS3</button>
           <button class="abtn" data-cf="pop" data-cf-what="a GOS4 repair/replacement voucher (from a dispense or external Rx)" data-cf-why="Adult GOS4 needs an NHS approval code; only the supplier/contractor signs.">＋ GOS4</button>
           <button class="abtn" data-cf="nav" data-cf-what="the GOS6 domiciliary flow — see the Domiciliary tab" data-cf-why="GOS6 auto-finds the patient’s accepted PVN and fills the PVN reference + address where the test took place.">＋ GOS6</button>
+          <button class="abtn" data-cf="pop" data-cf-what="the GOS3 Retrieval form — enter the patient’s voucher + authorisation codes to pull a takeaway claim started at another practice" data-cf-why="Rev 2 (Nova user-guide fold-in): the claim is matched to the NHS record on name / DoB / address, retrieved, then completed like a normal GOS3.">＋ GOS3 Retrieval</button>
           <div class="sep"></div>
           <div class="legendchip"><span class="conn flat">links to another module ↗</span> click any to see where it leads</div>
         </div>
@@ -537,11 +539,13 @@ document.querySelectorAll('.sbtn').forEach(b=>b.addEventListener('click',()=>sho
 
 /* ===================== CLAIMS ===================== */
 const CLAIMS=[
-  {ref:"64994",name:"Ignacio Muniz",form:"GOS1",lic:"G1",ready:[1,1,1,0,0],status:["s-prog","Data entry in progress"],claim:"£23.53",paid:"—",src:"diary",perf:"Mr A. Singh",contr:"pending",elig:"Aged 60+ (auto)",voucher:"NHS sight test"},
-  {ref:"64981",name:"Maria Okafor",form:"GOS3",lic:"G3",ready:[1,1,1,1,0],status:["s-ready","Ready to claim"],claim:"£69.48",paid:"—",src:"till",perf:"Ms R. Patel",contr:"pending",elig:"HC2 (cert 1234567)",voucher:"Band 2 · +tint"},
-  {ref:"64977",name:"David Klein",form:"GOS4",lic:"G4",ready:[1,1,1,1,1],status:["s-sub","Submitted"],claim:"£19.20",paid:"—",src:"till",perf:"—",contr:"signed",elig:"Approval code AB12",voucher:"Repair · 1 lens"},
-  {ref:"64960",name:"Aaliyah Khan",form:"GOS6",lic:"G6",ready:[1,1,1,1,1],status:["s-acc","Accepted"],claim:"£23.53",paid:"£23.53",src:"pvn",perf:"Mr A. Singh",contr:"signed",elig:"Domiciliary · Nursing home",voucher:"Home visit"},
-  {ref:"64921",name:"Tom Bradley",form:"GOS3",lic:"G3",ready:[1,0,1,0,0],status:["s-rej","Rejected"],claim:"£69.48",paid:"—",src:"till",perf:"Ms R. Patel",contr:"pending",elig:"⚠ Last-exam date invalid",voucher:"Band 2"},
+  {ref:"64994",name:"Ignacio Muniz",form:"GOS1",lic:"G1",ready:[1,1,1,0,0],status:["s-prog","Data entry in progress"],claim:"£23.53",paid:"—",src:"diary",perf:"Mr A. Singh",contr:"pending",elig:"Aged 60+ (auto)",eth:"White British",ident:"Patient",decl:"01/07/2026",voucher:"NHS sight test",hist:["Data entry in progress"]},
+  {ref:"64981",name:"Maria Okafor",form:"GOS3",lic:"G3",ready:[1,1,1,1,0],status:["s-ready","Ready for claim"],claim:"£69.48",paid:"—",src:"till",perf:"Ms R. Patel",contr:"pending",elig:"HC2 (cert 1234567)",eth:"Mixed – White & Asian",ident:"Patient",decl:"01/07/2026",voucher:"Band 2 · +tint",hist:["Ready for claim"]},
+  {ref:"64977",name:"David Klein",form:"GOS4",lic:"G4",ready:[1,1,1,1,1],status:["s-sub","Submitted"],claim:"£19.20",paid:"—",src:"till",perf:"—",contr:"signed",elig:"Approval code AB12",eth:"White British",ident:"Patient",decl:"30/06/2026",voucher:"Repair · 1 lens",hist:["Submitted","Validated"]},
+  {ref:"64966",name:"Nadia Roy",form:"GOS3 Ret",lic:"RT",ready:[1,1,1,1,0],status:["s-ready","Ready for claim"],claim:"£69.48",paid:"—",src:"till",perf:"Ms R. Patel",contr:"pending",elig:"HC2 · retrieved from another practice",eth:"Indian",ident:"Patient",decl:"01/07/2026",voucher:"Retrieved takeaway",vcode:"AAD96327",acode:"NFV00865",hist:["Retrieved from NHS","Ready for claim"]},
+  {ref:"64955",name:"Priya Shah",form:"GOS3_VO",lic:"VO",ready:[1,0,1,1,1],status:["s-term","Terminated · takeaway"],claim:"£69.48",paid:"—",src:"diary",perf:"Ms R. Patel",contr:"signed",elig:"Income Support",eth:"Indian",ident:"Patient",decl:"30/06/2026",voucher:"Takeaway voucher-only",vcode:"BND41902",acode:"KTP00713",hist:["Submitted","Terminated · codes issued"]},
+  {ref:"64960",name:"Aaliyah Khan",form:"GOS6",lic:"G6",ready:[1,1,1,1,1],status:["s-paid","Payment Sent"],claim:"£23.53",paid:"£23.53",src:"pvn",perf:"Mr A. Singh",contr:"signed",elig:"Domiciliary · Nursing home",eth:"Asian British",ident:"Carer (daughter)",decl:"28/06/2026",voucher:"Home visit",hist:["Submitted","Validated","Accepted","Payment Sent"]},
+  {ref:"64921",name:"Tom Bradley",form:"GOS3",lic:"G3",ready:[1,0,1,0,0],status:["s-rej","Rejected"],claim:"£69.48",paid:"—",src:"till",perf:"Ms R. Patel",contr:"pending",elig:"⚠ Last-exam date invalid",eth:"White British",ident:"Patient",decl:"29/06/2026",voucher:"Band 2",hist:["Submitted","Rejected"]},
 ];
 const RLAB=["Patient signed","Used in till","Performer recorded","Performer signed","Contractor signed"];
 const RVIA=["sign","till","exam","sign","sign"];
@@ -582,20 +586,31 @@ function openClaim(i){
   const rej=c.status[0]==='s-rej';
   document.getElementById('cmBody').innerHTML=`
     <div class="blk span2"><h4>Submission readiness — auto-submits at 5/5</h4>${tasks}</div>
-    <div class="blk"><h4>Eligibility</h4>
+    <div class="blk"><h4>Eligibility &amp; declaration</h4>
       <div class="row2"><span class="k">Reason</span><span>${c.elig}</span></div>
-      <div class="row2"><span class="k">Source</span><span class="conn in" data-cf="nav" data-cf-what="the patient’s NHS-entitlement section" data-cf-why="NHS-valid reason list with required fields (HC2 cert, Pension Credit recipient…). Auto-suggested from patient data and carried GOS1→GOS3.">from record ↘</span></div></div>
+      <div class="row2"><span class="k">Signatory</span><span>${c.ident||'Patient'}</span></div>
+      <div class="row2"><span class="k">Ethnicity</span><span>${c.eth||'—'}</span></div>
+      <div class="row2"><span class="k">Declaration date</span><span class="mono">${c.decl||'—'}</span></div>
+      <div class="row2"><span class="k">Source</span><span class="conn in" data-cf="nav" data-cf-what="the patient’s NHS-entitlement section" data-cf-why="NHS-valid reason list with required fields (HC2 cert, Pension Credit recipient…). Signatory identity, ethnicity and declaration date are captured on the declaration; the rest auto-populates from the sight-exam record.">from record ↘</span></div></div>
     <div class="blk"><h4>Signatures</h4>
       <div class="row2"><span class="k">Patient</span><span class="conn" data-cf="pop" data-cf-what="the signing device (egos.app), Patient tab" data-cf-why="Real-time push to the paired tablet; patient reads the declaration and signs. GOS3 signs twice — order (1 of 2) and collection (2 of 2).">request on device</span></div>
       <div class="row2"><span class="k">Performer</span><span>${c.perf}</span></div>
-      <div class="row2"><span class="k">Contractor</span><span>${c.contr}</span></div></div>
+      <div class="row2"><span class="k">Contractor</span><span>${c.contr}</span></div>
+      <div class="row2"><span class="k">Capture</span><span class="conn" data-cf="pop" data-cf-what="signing before the exam / reusing a stored signature" data-cf-why="A GOS1 patient can sign on arrival before the exam is keyed; the signature is stored for 12 hours and apportioned once the exam is added. An existing captured signature can be reused for adults not needing a carer.">sign before exam · 12h</span></div></div>
     <div class="blk"><h4>Money</h4>
       <div class="row2"><span class="k">Claimed</span><b>${c.claim}</b></div>
       <div class="row2"><span class="k">Voucher value</span><span class="conn in" data-cf="pop" data-cf-what="the live voucher-value calculation in the dispense" data-cf-why="As products/supplements are added the module picks the correct voucher type and highest legitimate value — with an ‘explain this value’ breakdown.">live from dispense</span></div>
       <div class="row2"><span class="k">Paid</span><span class="conn in" data-cf="nav" data-cf-what="BI / Reporting — PCSE statement import & auto-reconciliation" data-cf-why="The monthly PCSE statement is matched automatically: sets Paid, fills paid amount/date, flags under/over-payments.">${c.paid==='—'?'from PCSE statement':c.paid}</span></div></div>
     <div class="blk span2"><h4>Submission</h4>
       <div class="row2"><span class="k">NHS / PCSE</span><span class="conn" data-cf="nav" data-cf-what="the NHS Gateway (PCSE) submission + live status lifecycle" data-cf-why="Outbound XML secured with the practice PSK; asynchronous accept/reject/paid responses drive the status.">via NHS Gateway ↗</span></div>
-      ${rej?`<div class="row2"><span class="k">Rejection reason</span><span class="conn" data-cf="pop" data-cf-what="the PCSE rejection reason (status history) + correct-&-resubmit" data-cf-why="A rejection raises a branch task. Edit only fields not already signed for (e.g. last-exam date, retest code), then resubmit in one click.">view reason & fix</span></div>`:''}</div>`;
+      ${rej?`<div class="row2"><span class="k">Rejection reason</span><span class="conn" data-cf="pop" data-cf-what="the PCSE rejection reason (status history) + correct-&-resubmit" data-cf-why="A rejection raises a branch task. Edit only fields not already signed for (e.g. last-exam date, retest code), then resubmit in one click.">view reason & fix</span></div>`:''}</div>
+    <div class="blk span2"><h4>Status history</h4>
+      <div class="row2"><span class="k">Lifecycle</span><span>${(c.hist||[c.status[1]]).join('   →   ')}</span></div>
+      <div class="row2"><span class="k">NHS states</span><span style="font-size:11px;color:var(--muted)">Submitted → Validated → Accepted → Payment Sent · a submitted takeaway ends at Terminated</span></div></div>
+    ${c.vcode?`<div class="blk span2"><h4>${c.form==='GOS3_VO'?'Takeaway codes issued (voucher-only)':'Retrieval codes (from originating practice)'}</h4>
+      <div class="row2"><span class="k">Voucher code</span><b>${c.vcode}</b></div>
+      <div class="row2"><span class="k">Authorisation code</span><b>${c.acode}</b></div>
+      <div class="row2"><span class="k">${c.form==='GOS3_VO'?'Voucher':'Match'}</span><span class="conn" data-cf="pop" data-cf-what="${c.form==='GOS3_VO'?'print the voucher on plain paper or email it to the patient':'the NHS-record match on name / DoB / address'}" data-cf-why="${c.form==='GOS3_VO'?'Codes are issued only on submission; the patient takes these two codes to another practice, which enters them under GOS3 Retrieval to complete the claim.':'GOS3 Retrieval matches the two codes against the NHS record on name, DoB and address, then completes the claim like a normal GOS3.'}">${c.form==='GOS3_VO'?'print / email voucher':'matched to NHS record'}</span></div></div>`:''}`;
   document.getElementById('cmReq').style.display=rej?'none':'';
   document.getElementById('cmSubmit').textContent=rej?'Correct & resubmit ↗':'Submit to NHS ↗';
   document.getElementById('cmMask').classList.add('on');
@@ -660,8 +675,9 @@ function renderPane(){
       <div class="decl"><h5>Please check & confirm</h5>
         <div class="dl"><span class="tick">✓</span><span>I am entitled to NHS-funded care for the reason shown: <b>${it.form==='GOS6'?'Domiciliary — unable to attend':'Aged 60 or over'}</b>.</span></div>
         <div class="dl"><span class="tick">✓</span><span>The details on this form are correct to the best of my knowledge.</span></div>
+        <div class="dl"><span class="tick">•</span><span>Signatory: <b>Patient</b> · Ethnicity: <b>White British</b> · Declaration date: <b>today</b>.</span></div>
         ${it.form==='GOS3'?'<div class="dl"><span class="tick">✓</span><span>This signature is at the <b>order</b> stage (1 of 2). A second is taken at collection.</span></div>':''}
-        <div class="small">Declaration content & eligibility reasons are supplied by the NHS and shown for the patient to read before signing.</div></div>
+        <div class="small">Declaration content, eligibility reasons and ethnicity are captured here (supplied by the NHS). A patient may also sign before the exam — the signature is stored for 12 hours and apportioned to the claim once the exam is added.</div></div>
       <div class="padwrap"><div class="padlab">✍ Sign in the box below <span style="font-size:10px;color:var(--faint);font-weight:700">— returns to the claim instantly on submit</span></div>
         <div class="pad" data-cf="nav" data-cf-what="the captured signature being written back to the eGOS claim in the PMS" data-cf-why="On submit the signature image + metadata (who/when/device/declaration version) return to the claim and tick its ‘Patient signed’ step.">
           <span class="hint">Tap & sign here</span><div class="line"></div><span class="xmark">✕</span></div>
